@@ -10,13 +10,9 @@
 0="${ZERO:-${${0:#$ZSH_ARGZERO}:-${(%):-%N}}}"
 0="${${(M)0:#/*}:-$PWD/$0}"
 
-if [[ $PMSPEC != *f* ]] {
-    fpath+=( "${0:h}" )
-}
-
-print -u2 "loading git-by-id"
+fpath+=( "${0:h}" )
 
 autoload git-by-id
-print -u2 "loaded ${+functions[git-by-id]}"
+alias git='git-by-id'
 
-@zsh-plugin-run-on-update '__git-bid-teardown --no-setup'
+# @zsh-plugin-run-on-update '__git-bid-teardown --no-setup'

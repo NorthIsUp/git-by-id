@@ -15,7 +15,7 @@ setopt re_match_pcre
     # require git binary actually exists
     if (( !$+commands[$GIT_IDS_CMD] )) {
         print -u2 "can not find git command"
-        exit 1
+        return 1
     }
 
     # set up git alias unpacking
@@ -46,35 +46,35 @@ setopt re_match_pcre
     typeset -rgi __GIT_BY_ID_SETUP=1
 
     # proactively source the file
-    source $functions_source[git-bid] 'git-bid-setup'
+    # source $functions_source[git-by-id]
 }
 
+# -------------------------------- entrypoints ------------------------------- #
 (( $+functions[__git-bid] )) && {
     # run the script and return if everything is already sourced
     __git-bid "$@"
     return $status
 }
 
-# -------------------------------- entrypoints ------------------------------- #
 (( $+functions[__git-bid] )) || function __git-bid() {
     # this short-cuts the rest of the file when already sourced
     if [[ "$1" == 'refunc' ]] {
         xlg-cmd __git-bid-teardown
         return $status
-    } elif [[ "$1" != 'git-bid-setup' ]] {
+    } else {
         # run the function like normal!
         export LINES
         # disable color for now
         if (( 0 && $+functions[git-bid-color] )) {
             # run output through a fancy colorizer (but its kinda broken)
             if [[ "$1" == diff ]] {
-                git-by-id "$@" 2> >(git-bid-color stderr)
+                __git-by-id "$@" 2> >(git-bid-color stderr)
             } elif (( $+functions[git-bid-color] )) {
-                git-by-id "$@" > >(git-bid-color stdout) 2> >(git-bid-color stderr)
+                __git-by-id "$@" > >(git-bid-color stdout) 2> >(git-bid-color stderr)
             }
         } else {
-            # run git-by-id
-            git-by-id "$@"
+            # run __git-by-id
+            __git-by-id "$@"
         }
         return $status
     }
@@ -524,7 +524,7 @@ setopt re_match_pcre
 # ---------------------------------------------------------------------------- #
 #                                   Git By Id                                  #
 # ---------------------------------------------------------------------------- #
-(( $+functions[git-by-id] )) || function git-by-id() {
+(( $+functions[__git-by-id] )) || function __git-by-id() {
     [[ "$__trace__" ]] && set -x || set +x
     print "[$(date)] git-bid $@" >> /usr/local/var/log/git-bid.log
     local \
@@ -570,7 +570,7 @@ setopt re_match_pcre
             ;;
         (next)
             # git next BRANCH_BASE EXTRA_PHRASE
-            [[ "$2" ]] || {print -u2 "need a branch name" ; exit 1}
+            [[ "$2" ]] || {print -u2 "need a branch name" ; return 1}
             local phrase=("$2-next" "${3// /-}")
             xlg-cmd git checkout -b "${(@j:-:)phrase:#}"
             ;;
@@ -598,4 +598,9 @@ setopt re_match_pcre
     return $status
 }
 
+(( $+functions[__git-bid] )) && {
+    # run the script and return if everything is already sourced
+    __git-bid "$@"
+    return $status
+}
 # git-by-id "$@" > >(git-bid-color stdout) 2> >(git-bid-color stderr)
