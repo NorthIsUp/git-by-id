@@ -1,87 +1,105 @@
 #compdef git-bid=git
 # code: language=zsh
 #!/usr/bin/env zsh
-
-# Author: Adam Hitchcock
-# https://github.com/NorthIsUp/git-by-id
-
 setopt re_match_pcre
 
 # ------------------------------- git-bid-setup ------------------------------ #
-(( __GIT_BY_ID_SETUP )) || {
-    typeset -g  \
-        GIT_IDS_PREFIX_VAR="${GIT_IDS_PREFIX_VAR:-g}" \
-        GIT_IDS_CMD=git
+(( $+__GIT_BY_ID_SETUP )) || {
+    # set the underlying git command name, "git" by default
+    # the command will be found via $commands[$GIT_IDS_CMD]
+    typeset -g GIT_IDS_CMD="${GIT_IDS_CMD:-git}"
 
+    # set the git id variable prefix, defaults to "g"
+    typeset -g GIT_IDS_PREFIX_VAR="${GIT_IDS_PREFIX_VAR:-g}"
+
+    # require git binary actually exists
     if (( !$+commands[$GIT_IDS_CMD] )) {
         print -u2 "can not find git command"
         exit 1
     }
 
-    compdef git-bid=git git-by-id=git
-
-    local in_pager=0
-    [[ "$($commands[$GIT_IDS_CMD] config --get core.pager 2>/dev/null)" =~ 'git-bid-color' ]] && in_pager=1
-
-    # setup git alias support
+    # set up git alias unpacking
+    # this makes it so if you have an alias of `st` for `status`
+    # then `git-by-id st` will know you mean `status`
     typeset -Ag __GIT_BID_ALIASES
-    local a _aliases
-        
-    _aliases=$($commands[$GIT_IDS_CMD] config --get-regexp alias | awk '
-        function find_alias(a) { if (a in alias) return find_alias(alias[a]); else return a }
-        match($0, /^alias.(\w+)\s+(\w+)/, a) { alias[a[1]]=a[2] }
-        match($0, /^alias.(\w+)\s+!.*:\s*git\s+(\w+)/, a) { alias[a[1]]=a[2] }
-        END { for(i in alias) print i" "find_alias(i); }')
-    for a in ${(f)_aliases} ; {
-        __GIT_BID_ALIASES[${a% *}]="${a#* }"
+    (){
+        local a _aliases
+        _aliases=$($commands[$GIT_IDS_CMD] config --get-regexp alias | awk '
+            function find_alias(a) { if (a in alias) return find_alias(alias[a]); else return a }
+            match($0, /^alias.(\w+)\s+(\w+)/, a) { alias[a[1]]=a[2] }
+            match($0, /^alias.(\w+)\s+!.*:\s*git\s+(\w+)/, a) { alias[a[1]]=a[2] }
+            END { for(i in alias) print i" "find_alias(i); }')
+        for a in ${(f)_aliases} ; {
+            __GIT_BID_ALIASES[${a% *}]="${a#* }"
+        }
     }
 
-    typeset -rgi \
-        __GIT_BY_ID_SETUP=1 \
-        __GIT_BY_ID_COLOR_PAGER=$in_pager
+    # check to see if git is using a custom pager
+    local in_pager=0
+    [[ "$($commands[$GIT_IDS_CMD] config --get core.pager 2>/dev/null)" =~ 'git-bid-color' ]] && in_pager=1
+    typeset -rgi __GIT_BY_ID_COLOR_PAGER=$in_pager
 
+    # set up completions
+    compdef git-bid=git git-by-id=git
+
+    # mark setup complete
+    typeset -rgi __GIT_BY_ID_SETUP=1
+
+    # proactively source the file
     source $functions_source[git-bid] 'git-bid-setup'
 }
 
-# ---------------------------------- run it ---------------------------------- #
-if [[ "$1" == 'refunc' ]] {
-    gx __git-bid-teardown
+(( $+functions[__git-bid] )) && {
+    # run the script and return if everything is already sourced
+    __git-bid "$@"
     return $status
-} elif [[ "$1" != 'git-bid-setup' ]] {
-    export LINES
-    # disable color for now
-    if (( 0 && $+functions[git-bid-color] )) {
-        if [[ "$1" == diff ]] {
-            git-by-id "$@" 2> >(git-bid-color stderr)
-        } elif (( $+functions[git-bid-color] )) {
-            git-by-id "$@" > >(git-bid-color stdout) 2> >(git-bid-color stderr)
+}
+
+# -------------------------------- entrypoints ------------------------------- #
+(( $+functions[__git-bid] )) || function __git-bid() {
+    # this short-cuts the rest of the file when already sourced
+    if [[ "$1" == 'refunc' ]] {
+        xlg-cmd __git-bid-teardown
+        return $status
+    } elif [[ "$1" != 'git-bid-setup' ]] {
+        # run the function like normal!
+        export LINES
+        # disable color for now
+        if (( 0 && $+functions[git-bid-color] )) {
+            # run output through a fancy colorizer (but its kinda broken)
+            if [[ "$1" == diff ]] {
+                git-by-id "$@" 2> >(git-bid-color stderr)
+            } elif (( $+functions[git-bid-color] )) {
+                git-by-id "$@" > >(git-bid-color stdout) 2> >(git-bid-color stderr)
+            }
+        } else {
+            # run git-by-id
+            git-by-id "$@"
         }
-    } else {
-        git-by-id "$@"
+        return $status
     }
-    return $status
 }
 
 (( $+functions[__git-bid-teardown] )) || function __git-bid-teardown() {
     function_path="$functions_source[git-bid]"
     local bid_funcs=(${(k)functions[(I)git-by-id*]} ${(k)functions[(I)git-bid*]})
     print -Pu2 "%F{yellow}unloading functions%F{white}:" "\n  %F{white}- %F{yellow}"${^bid_funcs}"%f"
-    gx unset _GIT_BID_ALIASES
-    gx unfunction $bid_funcs
-    gx autoload git-bid
-    gx source $function_path 'git-bid-setup'
+    xlg-cmd unset _GIT_BID_ALIASES
+    xlg-cmd unfunction $bid_funcs
+    xlg-cmd autoload git-bid
+    [[ "$@" =~ '--no-setup' ]] || xlg-cmd source $function_path 'git-bid-setup'
 }
 
 # --------------------------------- polyfill --------------------------------- #
-(( $+functions[log-error] )) || function log-error() {
-    xlg "%F{red}$@%f"
+(( $+functions[xlg-error] )) || function xlg-error() {
+    xlg %"F{red}%B$@%b%f"
 }
 
-(( $+functions[log-debug] )) || function log-debug() {
-    xlg "%F{grey}$@%f"
+(( $+functions[xlg-debug] )) || function xlg-debug() {
+    xlg "%F{gray}$@%f"
 }
 
-(( $+functions[gx] )) || function gx() {
+(( $+functions[xlg-cmd] )) || function xlg-cmd() {
     # helper to log a command to stderr
     xlg "%B$1%b ${@:2}"
     "$@"
@@ -219,7 +237,7 @@ if [[ "$1" == 'refunc' ]] {
             local config_key="git-bid.${group}-${project}"
             local counter=${$(git-bid-config "$config_key"):-0}
 
-            git-bid-config --add --int "$config_key" $(( ++counter ))
+            git-bid-config --replace-all --int "$config_key" $(( ++counter ))
 
             [[ "$project" ]] && project="$project-"
             [[ "$flavor" ]] && flavor="-$flavor"
@@ -249,7 +267,7 @@ if [[ "$1" == 'refunc' ]] {
     }
     if (( co_status )) && [[ "$bi" && "$config_key" && "$counter" ]] {
         # decrement the counter if we failed to make the branch
-        git-bid-config --add --int "$" $(( --counter ))
+        git-bid-config --replace-all --int "$config_key" $(( --counter ))
     }
     return $co_status
 }
@@ -269,7 +287,7 @@ if [[ "$1" == 'refunc' ]] {
 
         sleep $sleep_time
 
-        gx $cmd $1 "$branch"
+        xlg-cmd $cmd $1 "$branch"
         return $status
     }
     return 0
@@ -323,11 +341,11 @@ if [[ "$1" == 'refunc' ]] {
         if [[ "$remove" || "$branch" ]] {
             # just keep going, the branch/file doesn't need to exist
         } elif [[ "$p" && ! -e "$p" ]] {
-            log-error "'$p' doesn't seem to exist"
+            xlg-error "'$p' doesn't seem to exist"
             return 1
         }
 
-        log-debug "[$1] -> $p"
+        xlg-debug "[$1] -> $p"
         args+="$p"
     }
 
@@ -353,7 +371,7 @@ if [[ "$1" == 'refunc' ]] {
 
     cmd=( ${(q-)args[@]} )
     if [[ "$execute" ]] {
-        gx $cmd
+        xlg-cmd $cmd
         return $status
     } else {
         print "$cmd"
@@ -396,7 +414,7 @@ if [[ "$1" == 'refunc' ]] {
         GIT_IDS+=([$GIT_IDS_COUNT]="$branch")
         GIT_IDS_BRANCHES+=([$GIT_IDS_COUNT]="$branch")
 
-        log-debug "Set \$$GIT_IDS_PREFIX_VAR$GIT_IDS_COUNT    => $file"
+        xlg-debug "Set \$$GIT_IDS_PREFIX_VAR$GIT_IDS_COUNT    => $file"
     done
 
 }
@@ -554,7 +572,7 @@ if [[ "$1" == 'refunc' ]] {
             # git next BRANCH_BASE EXTRA_PHRASE
             [[ "$2" ]] || {print -u2 "need a branch name" ; exit 1}
             local phrase=("$2-next" "${3// /-}")
-            gx git checkout -b "${(@j:-:)phrase:#}"
+            xlg-cmd git checkout -b "${(@j:-:)phrase:#}"
             ;;
         (fork)
             gh repo fork "${@:2}"
@@ -566,12 +584,15 @@ if [[ "$1" == 'refunc' ]] {
         (refunc|bid-refunc)
             __git-bid-teardown
             ;;
+        (unfunc|bid-unfunc)
+            __git-bid-teardown --no-setup
+            ;;
         (*)
             if (( $+commands[git-$1] || $+functions[git-$1] )) {
                 # run custom git-* commands directly
                 cmd="git-$1" ; shift
             }
-            gx $cmd "$@"
+            xlg-cmd $cmd "$@"
             ;;
     }
     return $status
