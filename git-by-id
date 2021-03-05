@@ -2,64 +2,72 @@
 # code: language=zsh
 #!/usr/bin/env zsh
 setopt re_match_pcre
+# ---------------------------------------------------------------------------- #
+#                                   Git By Id                                  #
+# ---------------------------------------------------------------------------- #
+
 
 # ------------------------------- git-bid-setup ------------------------------ #
-(( $+__GIT_BY_ID_SETUP )) || {
-    # set the underlying git command name, "git" by default
-    # the command will be found via $commands[$GIT_IDS_CMD]
-    typeset -g GIT_IDS_CMD="${GIT_IDS_CMD:-git}"
+(( $+GIT_BY_ID[__SETUP__] )) || {
+    # Config map, set as global assoiative array
+    typeset -Ag GIT_BY_ID
 
-    # set the git id variable prefix, defaults to "g"
-    typeset -g GIT_IDS_PREFIX_VAR="${GIT_IDS_PREFIX_VAR:-g}"
+    # the underlying git command name, "git" by default
+    # the git command will be found via $commands[${GIT_BY_ID[GIT]}]
+    GIT_BY_ID[GIT]="${GIT_BY_ID[GIT]:-git}"
 
     # require git binary actually exists
-    if (( !$+commands[$GIT_IDS_CMD] )) {
-        print -u2 "can not find git command"
+    if (( !$+commands[${GIT_BY_ID[GIT]}] )) {
+        print -Pu2 "%F{red}can not find git command%f"
         return 1
     }
+    GIT_BY_ID[GIT_CMD]="$commands[$GIT_BY_ID[GIT]]"
+
+
+    # location to dump a history of unwrapped commands
+    GIT_BY_ID[LOGFILE]="/usr/local/var/log/git-bid.log"
+
+    # the git id variable prefix, defaults to "g"
+    GIT_BY_ID[PREFIX_VAR]="${GIT_BY_ID[PREFIX_VAR]:-g}"
 
     # set up git alias unpacking
     # this makes it so if you have an alias of `st` for `status`
     # then `git-by-id st` will know you mean `status`
-    typeset -Ag __GIT_BID_ALIASES
-    (){
-        local a _aliases
-        _aliases=$($commands[$GIT_IDS_CMD] config --get-regexp alias | awk '
-            function find_alias(a) { if (a in alias) return find_alias(alias[a]); else return a }
-            match($0, /^alias.(\w+)\s+(\w+)/, a) { alias[a[1]]=a[2] }
-            match($0, /^alias.(\w+)\s+!.*:\s*git\s+(\w+)/, a) { alias[a[1]]=a[2] }
-            END { for(i in alias) print i" "find_alias(i); }')
-        for a in ${(f)_aliases} ; {
-            __GIT_BID_ALIASES[${a% *}]="${a#* }"
-        }
+    local a _aliases
+    _aliases=$($commands[${GIT_BY_ID[GIT]}] config --get-regexp alias | awk '
+        function find_alias(a) { if (a in alias) return find_alias(alias[a]); else return a }
+        match($0, /^alias.(\w+)\s+(\w+)/, a) { alias[a[1]]=a[2] }
+        match($0, /^alias.(\w+)\s+!.*:\s*git\s+(\w+)/, a) { alias[a[1]]=a[2] }
+        END { for(i in alias) print i" "find_alias(i); }')
+    for a in "${(f)_aliases}" ; {
+        GIT_BY_ID[ALIAS_${a% *}]="${a#* }"
     }
 
     # check to see if git is using a custom pager
-    local in_pager=0
-    [[ "$($commands[$GIT_IDS_CMD] config --get core.pager 2>/dev/null)" =~ 'git-bid-color' ]] && in_pager=1
-    typeset -rgi __GIT_BY_ID_COLOR_PAGER=$in_pager
+    # GIT_BY_ID[COLOR_PAGER]=0
+    # [[ "$($commands[${GIT_BY_ID[GIT]}] config --get core.pager 2>/dev/null)" =~ 'git-bid-color' ]] && GIT_BY_ID[COLOR_PAGER]=1
+
+    # mark setup complete
+    GIT_BY_ID[__SETUP__]=${EPOCHREALTIME:-1}
+
+    # freeze settings
+    readonly -Ag GIT_BY_ID
 
     # set up completions
     compdef git-bid=git git-by-id=git
 
-    # mark setup complete
-    typeset -rgi __GIT_BY_ID_SETUP=1
-
-    # proactively source the file
-    # source $functions_source[git-by-id]
+    # proactively source the file before continuing
+    source $functions_source[git-by-id]
 }
 
 # -------------------------------- entrypoints ------------------------------- #
-(( $+functions[__git-bid] )) && {
-    # run the script and return if everything is already sourced
-    __git-bid "$@"
+(( $+functions[git-bid-entrypoint] )) && {
+    # this short-cuts loading the rest of the file when already sourced
+    git-bid-entrypoint "$@"
     return $status
-}
-
-(( $+functions[__git-bid] )) || function __git-bid() {
-    # this short-cuts the rest of the file when already sourced
+} || function git-bid-entrypoint() {
     if [[ "$1" == 'refunc' ]] {
-        xlg-cmd __git-bid-teardown
+        xlg-cmd git-bid-teardown
         return $status
     } else {
         # run the function like normal!
@@ -68,29 +76,116 @@ setopt re_match_pcre
         if (( 0 && $+functions[git-bid-color] )) {
             # run output through a fancy colorizer (but its kinda broken)
             if [[ "$1" == diff ]] {
-                __git-by-id "$@" 2> >(git-bid-color stderr)
+                git-bid "$@" 2> >(git-bid-color stderr)
             } elif (( $+functions[git-bid-color] )) {
-                __git-by-id "$@" > >(git-bid-color stdout) 2> >(git-bid-color stderr)
+                git-bid "$@" > >(git-bid-color stdout) 2> >(git-bid-color stderr)
             }
         } else {
-            # run __git-by-id
-            __git-by-id "$@"
+            # run git-bid
+            git-bid "$@"
         }
         return $status
     }
 }
 
-(( $+functions[__git-bid-teardown] )) || function __git-bid-teardown() {
-    function_path="$functions_source[git-bid]"
-    local bid_funcs=(${(k)functions[(I)git-by-id*]} ${(k)functions[(I)git-bid*]})
-    print -Pu2 "%F{yellow}unloading functions%F{white}:" "\n  %F{white}- %F{yellow}"${^bid_funcs}"%f"
-    xlg-cmd unset _GIT_BID_ALIASES
+(( $+functions[git-bid-teardown] )) || function git-bid-teardown() {
+    local \
+        function_path="${functions_source[git-bid]}" \
+        bid_funcs=(
+            ${(k)functions[(I)git-by-id*]}
+            ${(k)functions[(I)git-bid*]}
+        )
+
+    print -Pu2 '%F{yellow}unloading functions%F{white}:' "\n"'  %F{white}- %F{yellow}'${^bid_funcs}'%f'
     xlg-cmd unfunction $bid_funcs
-    xlg-cmd autoload git-bid
+    xlg-cmd autoload git-by-id
     [[ "$@" =~ '--no-setup' ]] || xlg-cmd source $function_path 'git-bid-setup'
 }
 
-# --------------------------------- polyfill --------------------------------- #
+# ---------------------------------------------------------------------------- #
+#                                   Git By Id                                  #
+# ---------------------------------------------------------------------------- #
+(( $+functions[git-bid] )) || function git-bid() {
+    [[ "$__trace__" ]] && set -x || set +x
+    local \
+        extra_args=() \
+        cmd="$GIT_BY_ID[GIT_CMD]" \
+        unaliased \
+        branch
+
+    (( $+GIT_BY_ID[LOGFILE] )) && {
+        # logs all git-bid commands to a log
+        print "[$(date)] git-bid $@" >> $GIT_BY_ID[LOGFILE]
+    }
+
+    # unwrap the cmd to see if it is an alias, then use that for 
+    unaliased="${GIT_BY_ID[ALIAS_$1]:-$1}"
+    [[ "$1" != "$unaliased" ]] && {
+        xlg "%F{white}[%F{green}git %F{magenta}$1 %F{white}-> %F{green}git %F{magenta}$unaliased%F{white}]%f"
+    }
+
+    case $unaliased {
+        (*by-id-setup)
+            git-bid-shell-usage
+            ;;
+        (t | git)
+            git-bid-tgit "$@"
+            ;;
+        (stash)
+            git-bid-stash "$@"
+            ;;
+        (status)
+            git-bid-number "${@[2,-1]}"
+            ;;
+        (commit | add | merge )  # add verbose args
+            extra_args+=--verbose
+            ;&
+        (commit | blame | add | log | rebase | merge | difftool)
+            git-bid-number-expand --byid-execute $cmd $1 $extra_args "${@:2}"
+            ;;
+        (rm)
+            extra_args+=--byid-remove
+            ;&
+        (diff | rm | reset)
+            git-bid-number-expand --byid-execute --byid-relative $cmd $extra_args "$@"
+            ;;
+        (checkout)  # branch orenited things
+            git-bid-checkout "$@"
+            ;;
+        (branch)
+            git-bid-number-branch "${@:2}"
+            ;;
+        (next)
+            # git next BRANCH_BASE EXTRA_PHRASE
+            [[ "$2" ]] || {print -u2 "need a branch name" ; return 1}
+            local phrase=("$2-next" "${3// /-}")
+            xlg-cmd git checkout -b "${(@j:-:)phrase:#}"
+            ;;
+        (fork)
+            gh repo fork "${@:2}"
+            ;;
+
+        (push)
+            git-bid-push "$@"
+            ;;
+        (refunc|bid-refunc)
+            git-bid-teardown
+            ;;
+        (unfunc|bid-unfunc)
+            git-bid-teardown --no-setup
+            ;;
+        (*)
+            if (( $+commands[git-$1] || $+functions[git-$1] )) {
+                # run custom git-* commands directly
+                cmd="git-$1" ; shift
+            }
+            xlg-cmd $cmd "$@"
+            ;;
+    }
+    return $status
+}
+
+# ----------------------------------- utils ---------------------------------- #
 (( $+functions[xlg-error] )) || function xlg-error() {
     xlg %"F{red}%B$@%b%f"
 }
@@ -145,7 +240,7 @@ setopt re_match_pcre
 }
 
 (( $+functions[git-bid-config] )) || function git-bid-config() {
-    __config_ret=$($GIT_IDS_CMD config $@ 2>/dev/null)
+    __config_ret=$(${GIT_BY_ID[GIT]} config $@ 2>/dev/null)
     print "$__config_ret"
 }
 
@@ -385,8 +480,8 @@ setopt re_match_pcre
     git-bid-clean-vars
 
     # Fall back to normal git branch, if any unknown args given
-    if [[ "$($GIT_IDS_CMD branch | wc -l)" -gt 300 ]] || ([[ -n "$@" ]] && [[ "$@" != "-a" ]]); then
-        git-bid-number-expand --byid-execute $GIT_IDS_CMD branch "$@"
+    if [[ "$(${GIT_BY_ID[GIT]} branch | wc -l)" -gt 300 ]] || ([[ -n "$@" ]] && [[ "$@" != "-a" ]]); then
+        git-bid-number-expand --byid-execute ${GIT_BY_ID[GIT]} branch "$@"
         return $status
     fi
 
@@ -396,7 +491,7 @@ setopt re_match_pcre
 
     # Use ruby to inject numbers into git branch output
     ruby -e "$( cat <<-EOF
-		output = %x($GIT_IDS_CMD branch --color=always ${@})
+		output = %x(${GIT_BY_ID[GIT]} branch --color=always ${@})
 		line_count = output.lines.to_a.size
 		output.lines.each_with_index do |line, i|
 		    spaces = (line_count > 9 && i < 9 ? "    " : " ")
@@ -408,13 +503,13 @@ setopt re_match_pcre
 
     # Set numbered file shortcut in variable
     local IFS=$'\n'
-    for branch in $($GIT_IDS_CMD branch "$@" | sed "s/^[* ]\{2\}//"); do
+    for branch in $(${GIT_BY_ID[GIT]} branch "$@" | sed "s/^[* ]\{2\}//"); do
         (( GIT_IDS_COUNT++ ))
-        export $GIT_IDS_PREFIX_VAR$GIT_IDS_COUNT="$branch"
+        export $GIT_BY_ID[PREFIX_VAR]$GIT_IDS_COUNT="$branch"
         GIT_IDS+=([$GIT_IDS_COUNT]="$branch")
         GIT_IDS_BRANCHES+=([$GIT_IDS_COUNT]="$branch")
 
-        xlg-debug "Set \$$GIT_IDS_PREFIX_VAR$GIT_IDS_COUNT    => $file"
+        xlg-debug "Set \$$GIT_BY_ID[PREFIX_VAR]$GIT_IDS_COUNT    => $file"
     done
 
 }
@@ -519,88 +614,3 @@ setopt re_match_pcre
     }
     return $(( !GIT_IDS_COUNT ))
 }
-
-
-# ---------------------------------------------------------------------------- #
-#                                   Git By Id                                  #
-# ---------------------------------------------------------------------------- #
-(( $+functions[__git-by-id] )) || function __git-by-id() {
-    [[ "$__trace__" ]] && set -x || set +x
-    print "[$(date)] git-bid $@" >> /usr/local/var/log/git-bid.log
-    local \
-        extra_args=() \
-        cmd=$commands[$GIT_IDS_CMD] \
-        unaliased=${__GIT_BID_ALIASES[$1]:-$1} \
-        branch
-
-    if (( $+__GIT_BID_ALIASES[$1] )) {
-        xlg "%F{white}[%F{green}git %F{magenta}$1 %F{white}-> %F{green}git %F{magenta}$unaliased%F{white}]%f"
-    }
-
-    case $unaliased {
-        (*by-id-setup)
-            git-bid-shell-usage
-            ;;
-        (t | git)
-            git-bid-tgit "$@"
-            ;;
-        (stash)
-            git-bid-stash "$@"
-            ;;
-        (status)
-            git-bid-number "${@[2,-1]}"
-            ;;
-        (commit | add | merge )  # add verbose args
-            extra_args+=--verbose
-            ;&
-        (commit | blame | add | log | rebase | merge | difftool)
-            git-bid-number-expand --byid-execute $cmd $1 $extra_args "${@:2}"
-            ;;
-        (rm)
-            extra_args+=--byid-remove
-            ;&
-        (diff | rm | reset)
-            git-bid-number-expand --byid-execute --byid-relative $cmd $extra_args "$@"
-            ;;
-        (checkout)  # branch orenited things
-            git-bid-checkout "$@"
-            ;;
-        (branch)
-            git-bid-number-branch "${@:2}"
-            ;;
-        (next)
-            # git next BRANCH_BASE EXTRA_PHRASE
-            [[ "$2" ]] || {print -u2 "need a branch name" ; return 1}
-            local phrase=("$2-next" "${3// /-}")
-            xlg-cmd git checkout -b "${(@j:-:)phrase:#}"
-            ;;
-        (fork)
-            gh repo fork "${@:2}"
-            ;;
-
-        (push)
-            git-bid-push "$@"
-            ;;
-        (refunc|bid-refunc)
-            __git-bid-teardown
-            ;;
-        (unfunc|bid-unfunc)
-            __git-bid-teardown --no-setup
-            ;;
-        (*)
-            if (( $+commands[git-$1] || $+functions[git-$1] )) {
-                # run custom git-* commands directly
-                cmd="git-$1" ; shift
-            }
-            xlg-cmd $cmd "$@"
-            ;;
-    }
-    return $status
-}
-
-(( $+functions[__git-bid] )) && {
-    # run the script and return if everything is already sourced
-    __git-bid "$@"
-    return $status
-}
-# git-by-id "$@" > >(git-bid-color stdout) 2> >(git-bid-color stderr)
