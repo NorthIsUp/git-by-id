@@ -59,7 +59,12 @@ Setting this is only necessary if `GIT_BY_ID[GIT]` is not discoverable at the ti
 
 This is the full path to the git executable, this variable is what git-by-id uses internally to call git.
 
-### 🔷 `GIT_BY_ID[LOG_COMMANDS]` and 
+### 🔷 `GIT_BY_ID[VEBOSITY]` 
+> Default: `1`
+
+Enables info and debug output.
+
+### 🔷 `GIT_BY_ID[LOG_COMMANDS]` 
 > Default: `0`
 
 Enables a debug log of every git-by-id command run (with timestamps).
