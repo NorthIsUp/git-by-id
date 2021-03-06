@@ -30,6 +30,9 @@ setopt re_match_pcre
     # full path to the git command, this path is what is actually used byt git-by-id
     GIT_BY_ID[GIT_CMD]="${GIT_BY_ID[GIT_CMD]:-$commands[$GIT_BY_ID[GIT]]}"
 
+    # log lots of output, options are {0, 1, 2}
+    GIT_BY_ID[VERBOSITY]="${GIT_BY_ID[VERBOSITY]:-1}"
+
     # debug log of every git-by-id command
     GIT_BY_ID[LOG_COMMANDS]="${GIT_BY_ID[LOG_COMMANDS]:-0}"
 
@@ -204,12 +207,12 @@ setopt re_match_pcre
 }
 
 (( $+functions[xlg-debug] )) || function xlg-debug() {
-    xlg "%F{gray}$@%f"
+    (( GIT_BY_ID[VERBOSITY] >= 2 )) && xlg "%F{gray}$@%f"
 }
 
 (( $+functions[xlg-cmd] )) || function xlg-cmd() {
     # helper to log a command to stderr
-    xlg "%B$1%b ${@:2}"
+    (( GIT_BY_ID[VERBOSITY] >= 1 )) && xlg "%B$1%b ${@:2}"
     "$@"
 }
 
