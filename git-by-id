@@ -410,10 +410,13 @@ setopt re_match_pcre
 
 # ------------------------------- git-bid-push ------------------------------- #
 (( $+functions[git-bid-push] )) || function git-bid-push() {
-    if [[ -t 1 && "$($cmd branch --show-current)" == "master" ]] {
+    if [[
+        -t 1  # check if fd1 is open for read
+        && "$($cmd branch --show-current)" =~ '(master|main)'
+    ]] {
         local should_push
         until [[ "${should_push:l}" =~ '(y|yes|n|no)$' ]] {
-            read should_push\?"Push to master? [y/N]?"
+            read should_push\?"Push to ${match[1]}? [y/N]?"
             [[ ${${should_push:-no}:l} =~ '^(n|no|exit)$' ]] && return 1
         }
     }
