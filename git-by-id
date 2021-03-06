@@ -9,54 +9,65 @@ setopt re_match_pcre
 
 # ------------------------------- git-bid-setup ------------------------------ #
 (( $+GIT_BY_ID[__SETUP__] )) || {
+    # set up completions
+    compdef git-bid=git git-by-id=git
+
     # Config map, set as global assoiative array
     typeset -Ag GIT_BY_ID
 
-    # the underlying git command name, "git" by default
-    # the git command will be found via $commands[${GIT_BY_ID[GIT]}]
-    GIT_BY_ID[GIT]="${GIT_BY_ID[GIT]:-git}"
+    (( !$+GIT_BY_ID[GIT_CMD] )) && {
+        # the underlying git command name, "git" by default
+        # the git command will be found via $commands[${GIT_BY_ID[GIT]}]
+        GIT_BY_ID[GIT]="${GIT_BY_ID[GIT]:-git}"
 
-    # require git binary actually exists
-    if (( !$+commands[${GIT_BY_ID[GIT]}] )) {
-        print -Pu2 "%F{red}can not find git command%f"
-        return 1
+        # require git binary actually exists
+        if (( !$+commands[${GIT_BY_ID[GIT]}] )) {
+            print -Pu2 "%F{red}can not find git command '${GIT_BY_ID[GIT]}'%f"
+            return 1
+        }
     }
-    GIT_BY_ID[GIT_CMD]="$commands[$GIT_BY_ID[GIT]]"
 
+    # full path to the git command, this path is what is actually used byt git-by-id
+    GIT_BY_ID[GIT_CMD]="${GIT_BY_ID[GIT_CMD]:-$commands[$GIT_BY_ID[GIT]]}"
+
+    # debug log of every git-by-id command
+    GIT_BY_ID[LOG_COMMANDS]="${GIT_BY_ID[LOG_COMMANDS]:-0}"
 
     # location to dump a history of unwrapped commands
-    GIT_BY_ID[LOGFILE]="/usr/local/var/log/git-bid.log"
+    GIT_BY_ID[LOGFILE]="${GIT_BY_ID[LOGFILE]:-/usr/local/var/log/git-bid.log}"
 
+    # should id variables (`g23`, etc.) be set when creating the ids
+    GIT_BY_ID[SET_ID_VARS]="${GIT_BY_ID[SET_ID_VARS]:-1}"
+    
     # the git id variable prefix, defaults to "g"
     GIT_BY_ID[PREFIX_VAR]="${GIT_BY_ID[PREFIX_VAR]:-g}"
-
-    # set up git alias unpacking
-    # this makes it so if you have an alias of `st` for `status`
-    # then `git-by-id st` will know you mean `status`
-    local a _aliases
-    _aliases=$($commands[${GIT_BY_ID[GIT]}] config --get-regexp alias | awk '
-        function find_alias(a) { if (a in alias) return find_alias(alias[a]); else return a }
-        match($0, /^alias.(\w+)\s+(\w+)/, a) { alias[a[1]]=a[2] }
-        match($0, /^alias.(\w+)\s+!.*:\s*git\s+(\w+)/, a) { alias[a[1]]=a[2] }
-        END { for(i in alias) print i" "find_alias(i); }')
-    for a in "${(f)_aliases}" ; {
-        GIT_BY_ID[ALIAS_${a% *}]="${a#* }"
-    }
 
     # check to see if git is using a custom pager
     # GIT_BY_ID[COLOR_PAGER]=0
     # [[ "$($commands[${GIT_BY_ID[GIT]}] config --get core.pager 2>/dev/null)" =~ 'git-bid-color' ]] && GIT_BY_ID[COLOR_PAGER]=1
 
-    # mark setup complete
+    # set up git alias unpacking
+    # this makes it so if you have an alias of `alias.st=status` then `git-by-id st` will know you mean `status`
+    local key _aliases=$($GIT_BY_ID[GIT_CMD] config --get-regexp alias)
+    function find-alias() { (( $+GIT_BY_ID[ALIAS_$1] )) && find-alias "$GIT_BY_ID[ALIAS_$1]" || echo $1 }
+    for a in ${(f)_aliases} ; {
+        # looks for simple aliases and alias functions with a well formed `: git <cmd>` as the first statement
+        [[ $a =~ '^alias.(\w+)\s+(\w+)' || $a =~ '^alias.(\w+)\s+!.*:\s*git\s+(\w+)' ]] \
+            && GIT_BY_ID[ALIAS_${match[1]}]="${match[2]}"
+    }
+    for key in ${(k)GIT_BY_ID[(I)ALIAS_*]} ; {
+        GIT_BY_ID[$key]="$(find-alias ${key#ALIAS_*})"  # use find-alias to recursively unpack aliases
+    }
+
+    # mark time that setup completes (1 if EPOCHREALTIME is disabled)
     GIT_BY_ID[__SETUP__]=${EPOCHREALTIME:-1}
 
     # freeze settings
     readonly -Ag GIT_BY_ID
 
-    # set up completions
-    compdef git-bid=git git-by-id=git
-
     # proactively source the file before continuing
+    # this loads all the functions and enables faster loading of the commands
+    # in subsequent runs this will speed up execution
     source $functions_source[git-by-id]
 }
 
@@ -110,25 +121,27 @@ setopt re_match_pcre
     local \
         extra_args=() \
         cmd="$GIT_BY_ID[GIT_CMD]" \
-        unaliased \
+        unwrapped_cmd \
         branch
 
-    (( $+GIT_BY_ID[LOGFILE] )) && {
+    (( $GIT_BY_ID[LOG_COMMANDS] )) && {
         # logs all git-bid commands to a log
         print "[$(date)] git-bid $@" >> $GIT_BY_ID[LOGFILE]
     }
 
     # unwrap the cmd to see if it is an alias, then use that for 
-    unaliased="${GIT_BY_ID[ALIAS_$1]:-$1}"
-    [[ "$1" != "$unaliased" ]] && {
-        xlg "%F{white}[%F{green}git %F{magenta}$1 %F{white}-> %F{green}git %F{magenta}$unaliased%F{white}]%f"
+    unwrapped_cmd="${GIT_BY_ID[ALIAS_$1]:-$1}"
+    [[ "$1" != "$unwrapped_cmd" ]] && {
+        xlg "%F{white}[%F{green}git %F{magenta}$1 %F{white}-> %F{green}git %F{magenta}$unwrapped_cmd%F{white}]%f"
     }
 
-    case $unaliased {
+    case "$unwrapped_cmd" {
         (*by-id-setup)
+            # run setup
             git-bid-shell-usage
             ;;
         (t | git)
+            # handle funny cases of `gi t<cmd>` or `git git <cmd>`
             git-bid-tgit "$@"
             ;;
         (stash)
@@ -175,7 +188,7 @@ setopt re_match_pcre
             git-bid-teardown --no-setup
             ;;
         (*)
-            if (( $+commands[git-$1] || $+functions[git-$1] )) {
+            (( $+commands[git-$1] || $+functions[git-$1] )) && {
                 # run custom git-* commands directly
                 cmd="git-$1" ; shift
             }
@@ -255,6 +268,7 @@ setopt re_match_pcre
 
 
 (( $+functions[git-bid-clean-vars] )) || function git-bid-clean-vars() {
+    # reset the vairables used in each run
     typeset -g \
         GIT_IDS_COUNT=0
 
@@ -266,7 +280,7 @@ setopt re_match_pcre
         GIT_IDS_UNTRACKED=() \
         GIT_IDS_BRANCHES=()
 
-    unset -m "${GIT_IDS_PREFIX_VAR}[0-9]##"
+    unset -m "${GIT_BY_ID[PREFIX_VAR]}[0-9]##"
 }
 
 # ------------------------------- git-bid-tgit ------------------------------- #
@@ -480,15 +494,13 @@ setopt re_match_pcre
     git-bid-clean-vars
 
     # Fall back to normal git branch, if any unknown args given
-    if [[ "$(${GIT_BY_ID[GIT]} branch | wc -l)" -gt 300 ]] || ([[ -n "$@" ]] && [[ "$@" != "-a" ]]); then
+    if (( $(${GIT_BY_ID[GIT]} branch | wc -l) > 300 )) || [[ -n "$@" && "$@" != "-a" ]]; then
         git-bid-number-expand --byid-execute ${GIT_BY_ID[GIT]} branch "$@"
         return $status
     fi
 
-
-    #todo
-    # add info about commit message: git log master..$branch --oneline | tail -1
-
+    #TODO add info about commit message: git log master..$branch --oneline | tail -1
+    #TODO: replace this with zsh or awk
     # Use ruby to inject numbers into git branch output
     ruby -e "$( cat <<-EOF
 		output = %x(${GIT_BY_ID[GIT]} branch --color=always ${@})
@@ -502,16 +514,15 @@ setopt re_match_pcre
 
 
     # Set numbered file shortcut in variable
-    local IFS=$'\n'
+    local IFS=$'\n' branch
     for branch in $(${GIT_BY_ID[GIT]} branch "$@" | sed "s/^[* ]\{2\}//"); do
         (( GIT_IDS_COUNT++ ))
-        export $GIT_BY_ID[PREFIX_VAR]$GIT_IDS_COUNT="$branch"
+        (( GIT_BY_ID[SET_ID_VARS] )) && \
+        (( GIT_BY_ID[SET_ID_VARS] )) && \
+                export $GIT_BY_ID[PREFIX_VAR]$GIT_IDS_COUNT="$branch"
         GIT_IDS+=([$GIT_IDS_COUNT]="$branch")
         GIT_IDS_BRANCHES+=([$GIT_IDS_COUNT]="$branch")
-
-        xlg-debug "Set \$$GIT_BY_ID[PREFIX_VAR]$GIT_IDS_COUNT    => $file"
     done
-
 }
 
 # ---------------------------------- number ---------------------------------- #
@@ -596,7 +607,8 @@ setopt re_match_pcre
             found_file="${found_file//$'\033'\[([0-9;])#m/}"
             GIT_IDS+=([$GIT_IDS_COUNT]="$found_file")
             typeset -x "${section}[$GIT_IDS_COUNT]"="$found_file"
-            export ${GIT_IDS_PREFIX_VAR:=g}$GIT_IDS_COUNT="$found_file"
+            (( GIT_BY_ID[SET_ID_VARS] )) && \
+                export ${GIT_BY_ID[PREFIX_VAR]}$GIT_IDS_COUNT="$found_file"
         }
     }
 
