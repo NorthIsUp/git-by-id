@@ -59,6 +59,11 @@ Setting this is only necessary if `GIT_BY_ID[GIT]` is not discoverable at the ti
 
 This is the full path to the git executable, this variable is what git-by-id uses internally to call git.
 
+### 🔷 `GIT_BY_ID[NO_COLOR]` (not working yet)
+> Default: `0`
+
+Disable color output
+
 ### 🔷 `GIT_BY_ID[VEBOSITY]` 
 > Default: `1`
 

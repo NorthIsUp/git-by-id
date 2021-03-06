@@ -33,6 +33,9 @@ setopt re_match_pcre
     # log lots of output, options are {0, 1, 2}
     GIT_BY_ID[VERBOSITY]="${GIT_BY_ID[VERBOSITY]:-1}"
 
+    # enable color
+    GIT_BY_ID[NO_COLOR]="${GIT_BY_ID[NO_COLOR]:-0}"
+
     # debug log of every git-by-id command
     GIT_BY_ID[LOG_COMMANDS]="${GIT_BY_ID[LOG_COMMANDS]:-0}"
 
