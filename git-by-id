@@ -481,7 +481,7 @@ setopt re_match_pcre
         }
     done
 
-    cmd=( ${(q-)args[@]} )
+    cmd=( ${args[@]} )
     if [[ "$execute" ]] {
         xlg-cmd $cmd
         return $status
