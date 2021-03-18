@@ -47,49 +47,49 @@ Untracked files not listed (use -u option to show untracked files)
 
 All config will be held in the `GIT_BY_ID` config map. Once the setup is run for the first time `GIT_BY_ID` will be marked `readonly` for safety.
 
-#### 🔷 `GIT_BY_ID[GIT]`
+#### ▸ `GIT_BY_ID[GIT]`
 *Default: `git`*
 
 The command used to run all underlying git commands. The validity of this will be checked via `$+commands[${GIT_BY_ID[GIT]}]`. This check is skipped if `GIT_BY_ID[GIT_CMD]` is already configured.
 
-#### 🔷 `GIT_BY_ID[GIT_CMD]`
+#### ▸ `GIT_BY_ID[GIT_CMD]`
 *Default: `$commands[$GIT_BY_ID[GIT]]`*
 
 Setting this is only necessary if `GIT_BY_ID[GIT]` is not discoverable at the time of first run.
 
 This is the full path to the git executable, this variable is what git-by-id uses internally to call git.
 
-#### 🔷 `GIT_BY_ID[NO_COLOR]` (not working yet)
+#### ▸ `GIT_BY_ID[NO_COLOR]` (not working yet)
 *Default: `0`*
 
 Disable color output
 
-#### 🔷 `GIT_BY_ID[VEBOSITY]` 
+#### ▸ `GIT_BY_ID[VEBOSITY]` 
 *Default: `1`*
 
 Enables info and debug output.
 
-#### 🔷 `GIT_BY_ID[LOG_COMMANDS]` 
+#### ▸ `GIT_BY_ID[LOG_COMMANDS]` 
 *Default: `0`*
 
 Enables a debug log of every git-by-id command run (with timestamps).
 
-#### 🔷 `GIT_BY_ID[LOGFILE]`
+#### ▸ `GIT_BY_ID[LOGFILE]`
 *Default: `/usr/local/var/log/git-bid.log`*
 
 Location of debug logfile.
 
-#### 🔷 `GIT_BY_ID[SET_ID_VARS]`
+#### ▸ `GIT_BY_ID[SET_ID_VARS]`
 *Default: `1`*
 
 should id variables (`g23`, etc.) be set when creating the ids
 
-#### 🔷 `GIT_BY_ID[PREFIX_VAR]`
+#### ▸ `GIT_BY_ID[PREFIX_VAR]`
 *Default: `g`*
 
 The git id variable prefix, defaults to "g"
 
-#### 🔷 `GIT_BY_ID[ALIAS_*]`
+#### ▸ `GIT_BY_ID[ALIAS_*]`
 Git-by-id will attempt to unwrap aliases so it can do the right thing with respect to processing output and adding ids. If it isn't picking up on one of your aliases it can be manually added to the config.
 
 For an alias of `alias.st=status` you could add `GIT_BY_ID[ALIAS_st]=status` to the config.
