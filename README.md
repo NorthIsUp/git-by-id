@@ -114,7 +114,7 @@ zinit load northisup/git-by-id
 
 # 🔶 Other Features
 
-## 🔶 Fixing typos like `gi tstatus` and `git git status`
+### ▸ Fixing typos like `gi tstatus` and `git git status`
 
 Git-by-id adds `alias gi=git t`. This checks for typos where you hit the spacebar a little early.
 
@@ -137,7 +137,7 @@ Cloning into 'git-by-id'
 > If you want this feature without installing git-by-id add the following alias to your git config.
 > `git config alias.t=!t() { : git ; echo "+ gi t${1#t} -> git ${1#t}" >&2 ; set -x ; git "${1#t}" "${@:2}" ; }; t`
 
-## 🔶 `next` branch
+### ▸ `next` branch
 
 Git-by-id will substitute the word `next` for an incrementing number.
 
@@ -152,7 +152,7 @@ $ git checkout -b cool-feature-name/next-some-description
 Switched to a new branch 'cool-feature-name/15-some-description'
 ```
 
-## 🔶 Alias Aware
+### ▸ Alias Aware
 
 Git-by-id will read your git config to make sure it act
 ```
