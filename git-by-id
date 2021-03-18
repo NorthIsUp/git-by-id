@@ -10,7 +10,7 @@ setopt re_match_pcre
 # ------------------------------- git-bid-setup ------------------------------ #
 (( $+GIT_BY_ID[__SETUP__] )) || {
     # set up completions
-    compdef git-bid=git git-by-id=git
+    (( $+functions[compdef] )) && compdef git-bid=git git-by-id=git
 
     # Config map, set as global assoiative array
     typeset -Ag GIT_BY_ID
