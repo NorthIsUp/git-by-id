@@ -43,7 +43,7 @@ Changes to be committed:
 Untracked files not listed (use -u option to show untracked files)
 ```
 
-# 🔷 Configuration
+# 💾 Configuration
 
 All config will be held in the `GIT_BY_ID` config map. Once the setup is run for the first time `GIT_BY_ID` will be marked `readonly` for safety.
 
@@ -112,7 +112,7 @@ alias git='git-by-id'
 zinit load northisup/git-by-id
 ```
 
-# 🔶 Other Features
+# 🛍 Other Features
 
 ### ▸ Fixing typos like `gi tstatus` and `git git status`
 
