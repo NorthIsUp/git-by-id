@@ -51,11 +51,11 @@ zmodload zsh/pcre
     GIT_BY_ID[PREFIX_VAR]="${GIT_BY_ID[PREFIX_VAR]:-g}"
 
     local _theme='ob=black:cb=black'
-    GIT_BY_ID[THEME]="${GIT_BY_ID[THEME]:-'ob=black:cb=black'}"
+    GIT_BY_ID[THEME]="${GIT_BY_ID[THEME]:-$_theme}"
     typeset -Ag GIT_BY_ID_THEME
 
     for segment in ${(s@:@)GIT_BY_ID[THEME]} ; {
-        if [[ segment =~ (ob|cb)=(\w+) ]] {
+        if [[ "$segment" =~ ^(ob|cb)=(\w+)$ ]] {
             key=$match[1]
             color=$match[2]
             case $key ; {
@@ -134,9 +134,11 @@ zmodload zsh/pcre
         )
 
     print -Pu2 '%F{yellow}unloading functions%F{white}:' "\n"'  %F{white}- %F{yellow}'${^bid_funcs}'%f'
-    xlg-cmd unfunction $bid_funcs
-    xlg-cmd autoload git-by-id
-    [[ "$@" =~ '--no-setup' ]] || xlg-cmd source $function_path 'git-bid-setup'
+    typeset +r GIT_BY_ID
+    (( $+GIT_BY_ID[__SETUP__] )) && GIT_BY_ID[__SETUP__]=
+    xlg-cmd -v unfunction $bid_funcs
+    xlg-cmd -v autoload git-by-id
+    [[ "$@" =~ '--no-setup' ]] || xlg-cmd -v source $function_path 'git-bid-setup'
 }
 
 # ---------------------------------------------------------------------------- #
@@ -235,11 +237,18 @@ zmodload zsh/pcre
 
 (( $+functions[xlg-cmd] )) || function xlg-cmd() {
     # helper to log a command to stderr
+    local -i verbosity=0
+
+    [[ "$1" =~ '-v|--verbose' ]] && {
+        verbosity=2
+        shift
+    }
 
     # allow for per-git-command verbosity levels via GIT_BY_ID[VERBOSITY__git-<COMMAND>]
-    local verbosity="${GIT_BY_ID[VERBOSITY]}"
+    verbosity=$(( max(${GIT_BY_ID[VERBOSITY]:-0}, ${GIT_BY_ID[VERBOSITY]:-0}) ))
+
     if [[ "$1" == "$GIT_BY_ID[GIT_CMD]" ]] {
-        verbosity="${GIT_BY_ID[VERBOSITY__git-$2]:-$verbosity}"
+        verbosity=0
     }
 
     (( verbosity >= 1 )) && xlg "%B$1%b ${@:2}"
