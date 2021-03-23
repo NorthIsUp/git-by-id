@@ -511,9 +511,9 @@ zmodload zsh/pcre
             } else {
                 prel $arg || return $status
             }
-        } elif [[ "$arg" =~ ^[0-9]{1,4}([-,]|\.{2})[0-9]{1,4}$ ]] {
+        } elif [[ "$arg" =~ ^([0-9]{1,4})(?:[-,]|[.]{2})([0-9]{1,4})$ ]] {
             # Expand ranges into $e{*} variables
-            for i in {${arg/${match[1]}/..}}; {
+            for i in {$match[1]..$match[2]}; {
                 prel $i || return $status
             }
         } else {
