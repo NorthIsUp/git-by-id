@@ -19,7 +19,7 @@ zmodload zsh/pcre
     (( !$+GIT_BY_ID[GIT_CMD] )) && {
         # the underlying git command name, "git" by default
         # the git command will be found via $commands[${GIT_BY_ID[GIT]}]
-        GIT_BY_ID[GIT]="${GIT_BY_ID[GIT]:-git}"
+        : "${GIT_BY_ID[GIT]:=git}"
 
         # require git binary actually exists
         if (( !$+commands[${GIT_BY_ID[GIT]}] )) {
@@ -29,41 +29,44 @@ zmodload zsh/pcre
     }
 
     # full path to the git command, this path is what is actually used byt git-by-id
-    GIT_BY_ID[GIT_CMD]="${GIT_BY_ID[GIT_CMD]:-$commands[$GIT_BY_ID[GIT]]}"
+    : "${GIT_BY_ID[GIT_CMD]:=$commands[$GIT_BY_ID[GIT]]}"
 
     # log lots of output, options are {0, 1, 2}
     # per command verbosity levels via GIT_BY_ID[VERBOSITY__git-<COMMAND>]
-    GIT_BY_ID[VERBOSITY]="${GIT_BY_ID[VERBOSITY]:-2}"
+    : "${GIT_BY_ID[VERBOSITY]:=2}"
 
     # enable color
-    GIT_BY_ID[NO_COLOR]="${GIT_BY_ID[NO_COLOR]:-0}"
+    : "${GIT_BY_ID[NO_COLOR]:=0}"
+    : "${GIT_BY_ID[EXTRA_COLOR]:=0}"
 
     # debug log of every git-by-id command
-    GIT_BY_ID[LOG_COMMANDS]="${GIT_BY_ID[LOG_COMMANDS]:-0}"
+    : "${GIT_BY_ID[LOG_COMMANDS]:=0}"
 
     # location to dump a history of unwrapped commands
-    GIT_BY_ID[LOGFILE]="${GIT_BY_ID[LOGFILE]:-/usr/local/var/log/git-bid.log}"
+    : "${GIT_BY_ID[LOGFILE]:=/usr/local/var/log/git-bid.log}"
 
     # should id variables (`g23`, etc.) be set when creating the ids
-    GIT_BY_ID[SET_ID_VARS]="${GIT_BY_ID[SET_ID_VARS]:-1}"
+    : "${GIT_BY_ID[SET_ID_VARS]:=1}"
     
     # the git id variable prefix, defaults to "g"
-    GIT_BY_ID[PREFIX_VAR]="${GIT_BY_ID[PREFIX_VAR]:-g}"
+    : "${GIT_BY_ID[PREFIX_VAR]:=g}"
 
-    local _theme='ob=black:cb=black'
-    GIT_BY_ID[THEME]="${GIT_BY_ID[THEME]:-$_theme}"
-    typeset -Ag GIT_BY_ID_THEME
+    # setup the theme
+    local _theme=(
+        'ob=%F{black}['
+        'cb=%F{black}]'
+        'id=%F{white}'
+        'git-del=%F{red}-'
+        'git-new=%F{green}%B+%b'
+        'git-both=%F{magenta}%B~%b%F{red}'
+        'git-mod=%F{yellow}+'
+        'arrow=%F{magenta}  --> %F{yellow}'
+    )
+    : "${GIT_BY_ID[THEME]:=${(j@:@)_theme}}"
 
     for segment in ${(s@:@)GIT_BY_ID[THEME]} ; {
-        if [[ "$segment" =~ ^(ob|cb)=(cyan|white|yellow|magenta|black|blue|red|default|grey|green)$ ]] {
-            key=$match[1]
-            color=$match[2]
-            case $key ; {
-                ob) char='[' ;;
-                cb) char=']' ;;
-                *) char='' ;;
-            }
-            GIT_BY_ID_THEME[$key]="${fg[$color]}$char$reset_color"
+        if [[ "$segment" =~ "^([a-z-]+)=(.*)$" ]] {
+            GIT_BY_ID[THEME_$match[1]]="${match[2]}"
         } else {
             print -u2 "'$segment' is an invalid theme option"
         }
@@ -74,7 +77,7 @@ zmodload zsh/pcre
 
     # set up git alias unpacking
     # this makes it so if you have an alias of `alias.st=status` then `git-by-id st` will know you mean `status`
-    local key _aliases=$($GIT_BY_ID[GIT_CMD] config --get-regexp alias)
+    local key='' _aliases=$($GIT_BY_ID[GIT_CMD] config --get-regexp alias)
     function find-alias() { (( $+GIT_BY_ID[ALIAS_$1] )) && find-alias "$GIT_BY_ID[ALIAS_$1]" || echo $1 }
     for a in ${(f)_aliases} ; {
         # looks for simple aliases and alias functions with a well formed `: git <cmd>` as the first statement
@@ -86,7 +89,7 @@ zmodload zsh/pcre
     }
 
     # mark time that setup completes (1 if EPOCHREALTIME is disabled)
-    GIT_BY_ID[__SETUP__]=${EPOCHREALTIME:-1}
+    : "${GIT_BY_ID[__SETUP__]:=${EPOCHREALTIME:-1}}"
 
     # freeze settings
     readonly -Ag GIT_BY_ID
@@ -110,7 +113,7 @@ zmodload zsh/pcre
         # run the function like normal!
         export LINES
         # disable color for now
-        if (( $+functions[git-bid-color] )) {
+        if (( GIT_BY_ID[EXTRA_COLOR] && $+functions[git-bid-color] )) {
             # run output through a fancy colorizer (but its kinda broken)
             if [[ "$1" == diff ]] {
                 git-bid "$@" 2> >(git-bid-color stderr)
@@ -127,7 +130,7 @@ zmodload zsh/pcre
 
 (( $+functions[git-bid-teardown] )) || function git-bid-teardown() {
     local \
-        arrow='%F{magenta}  --> %F{yellow}'
+        arrow=$GIT_BY_ID[THEME_arrow] \
         sources=("${functions_source[git-by-id]}") \
         bid_funcs=(
             ${(k)functions[(I)git-by-id*]}
@@ -619,12 +622,12 @@ zmodload zsh/pcre
     fi
 
     #TODO add info about commit message: git log master..$branch --oneline | tail -1
-    local branches branch i=0
+    local branches branch= i=0
     branches=( ${(f)"$(${GIT_BY_ID[GIT]} branch --color=always ${@})"} )
     for line in ${branches} ; {
         if [[ "$line" =~ "^([ *]{2})(.*)" ]] {
             branch="${match[2]}"
-            print -P "$match[1]%F{black}[%f$((++i))%F{black}]%f $match[2]"
+            print -P "${match[1]}${GIT_BY_ID[THEME_ob]}${GIT_BY_ID[THEME_id]}$((++i))${GIT_BY_ID[THEME_cb]} ${match[2]}"
             # print -P $(git log --oneline master..$branch | tail -1)
         } else {
             xlg-error "no match '$line'"
@@ -633,12 +636,9 @@ zmodload zsh/pcre
 
 
     # Set numbered file shortcut in variable
-    local IFS=$'\n' branch
-    for branch in $(${GIT_BY_ID[GIT]} branch "$@" | sed "s/^[* ]\{2\}//"); do
-        (( GIT_IDS_COUNT++ ))
-        (( GIT_BY_ID[SET_ID_VARS] )) && \
-        (( GIT_BY_ID[SET_ID_VARS] )) && \
-                export $GIT_BY_ID[PREFIX_VAR]$GIT_IDS_COUNT="$branch"
+    for branch in $(IFS=$'\n' ${GIT_BY_ID[GIT]} branch "$@" | sed "s/^[* ]\{2\}//"); do
+        (( GIT_IDS_COUNT++ && GIT_BY_ID[SET_ID_VARS] && GIT_BY_ID[SET_ID_VARS] )) \
+            && export $GIT_BY_ID[PREFIX_VAR]$GIT_IDS_COUNT="$branch"
         GIT_IDS+=([$GIT_IDS_COUNT]="$branch")
         GIT_IDS_BRANCHES+=([$GIT_IDS_COUNT]="$branch")
     done
@@ -687,7 +687,15 @@ zmodload zsh/pcre
     git_status=( "${(f@)$(/usr/bin/env git $git_args status "$@")}" )
     GIT_IDS_COUNT=0
 
-    local ob="${fg[black]}[$reset_color" cb="${fg[black]}]$reset_color"
+    # local ob="${fg[black]}[$reset_color" cb="${fg[black]}]$reset_color"
+    local \
+        _ob="${GIT_BY_ID[THEME_ob]}" \
+        _cb="${GIT_BY_ID[THEME_cb]}" \
+        _id="${GIT_BY_ID[THEME_id]}" \
+        _del="${GIT_BY_ID[THEME_git-del]}" \
+        _new="${GIT_BY_ID[THEME_git-new]}" \
+        _both="${GIT_BY_ID[THEME_git-both]}" \
+        _mod="${GIT_BY_ID[THEME_git-mod]}" \
 
     local ansi='\033\[[[:digit:]|;]*m'
     for line in "${(@)git_status}" ; {
@@ -707,18 +715,18 @@ zmodload zsh/pcre
             for (( i=1 ; i <= ${#match_names} ; i++ ))  local "${match_names[i]}"="$match[$i]"
             [[ "$__trace__" && "$line_color" ]] && print -P "$kind ${line_color}found a color => %f${(q)line_color}"
             case "$kind" {
-                (deleted)         kind="%F{red}-$line_color$kind" ;;
-                (new*)            kind="%F{green}%B+%b$line_color$kind" ;;
-                (both modified)   kind="%F{magenta}%B~%b%F{red}$kind" ;;
-                (modified)        kind="%F{yellow}+$line_color$kind" ;;
+                (deleted)         kind="${_del}$line_color$kind" ;;
+                (new*)            kind="${_new}$line_color$kind" ;;
+                (both modified)   kind="${_both}$kind" ;;
+                (modified)        kind="${_mod}$line_color$kind" ;;
                 (*)               kind="?$line_color$kind" ; xlg "plz handle '$kind'" ;;
             }
             : $(( ++GIT_IDS_COUNT ))
             local id_pad="__id_pad_${#GIT_IDS_COUNT}"  # add padding to the number based on how many files we have seen
-            line="$lpad$ob$GIT_IDS_COUNT$cb$id_pad $kind$colon$line_color$rpad$found_file"
+            line="$lpad$_ob$_id$GIT_IDS_COUNT$_cb$id_pad $kind$colon$line_color$rpad$found_file"
         } elif [[ "$line" =~ "(\t)(.*)" ]] {
             local lpad="$match[1]" found_file="$match[2]"
-            line="$lpad$ob$(( ++GIT_IDS_COUNT ))$cb $found_file"
+            line="$lpad$_ob$_id$(( ++GIT_IDS_COUNT ))$cb $found_file"
         }
 
         output+="$line"
