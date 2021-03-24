@@ -55,7 +55,7 @@ zmodload zsh/pcre
     typeset -Ag GIT_BY_ID_THEME
 
     for segment in ${(s@:@)GIT_BY_ID[THEME]} ; {
-        if [[ "$segment" =~ ^(ob|cb)=(\w+)$ ]] {
+        if [[ "$segment" =~ ^(ob|cb)=(cyan|white|yellow|magenta|black|blue|red|default|grey|green)$ ]] {
             key=$match[1]
             color=$match[2]
             case $key ; {
@@ -94,7 +94,7 @@ zmodload zsh/pcre
     # proactively source the file before continuing
     # this loads all the functions and enables faster loading of the commands
     # in subsequent runs this will speed up execution
-    source $functions_source[git-by-id]
+    [[ -e "$functions_source[git-by-id]" ]] && builtin source $functions_source[git-by-id]
 }
 
 # -------------------------------- entrypoints ------------------------------- #
@@ -110,7 +110,7 @@ zmodload zsh/pcre
         # run the function like normal!
         export LINES
         # disable color for now
-        if (( 0 && $+functions[git-bid-color] )) {
+        if (( $+functions[git-bid-color] )) {
             # run output through a fancy colorizer (but its kinda broken)
             if [[ "$1" == diff ]] {
                 git-bid "$@" 2> >(git-bid-color stderr)
@@ -127,18 +127,41 @@ zmodload zsh/pcre
 
 (( $+functions[git-bid-teardown] )) || function git-bid-teardown() {
     local \
-        function_path="${functions_source[git-bid]}" \
+        arrow='%F{magenta}  --> %F{yellow}'
+        sources=("${functions_source[git-by-id]}") \
         bid_funcs=(
             ${(k)functions[(I)git-by-id*]}
             ${(k)functions[(I)git-bid*]}
         )
 
-    print -Pu2 '%F{yellow}unloading functions%F{white}:' "\n"'  %F{white}- %F{yellow}'${^bid_funcs}'%f'
+    xlg "%B%F{yellow}====> scrubbing git-by-id environment%b%f"
+
+
+    xlg "$arrow cleaning config%f"
     typeset +r GIT_BY_ID
     (( $+GIT_BY_ID[__SETUP__] )) && GIT_BY_ID[__SETUP__]=
-    xlg-cmd -v unfunction $bid_funcs
-    xlg-cmd -v autoload git-by-id
-    [[ "$@" =~ '--no-setup' ]] || xlg-cmd -v source $function_path 'git-bid-setup'
+
+    xlg "$arrow cleaning variables%f"
+    xlg-cmd git-bid-clean-vars
+
+    xlg "$arrow unloading functions%F{white}:" "\n+> "'      %F{white}- %F{yellow}'${^bid_funcs}'%f'
+    xlg-cmd unfunction $bid_funcs
+
+    xlg "$arrow autoloading git-by-id%f"
+    xlg-cmd autoload git-by-id
+
+    [[ "$@" =~ '--no-setup' ]] && return
+    
+    xlg "$arrow force loading git-by-id%f"
+    for line in ${(f)"$(shasum $sources)"} ; {
+        if [[ $line =~ '^([a-z0-9]+) (.*)$' ]] {
+            xlg "$arrow ${match[1][1,7]}%f %F{white}${match[2]}%f"
+        } else {
+            xlg  "$line"
+        }
+    }
+
+    xlg-cmd builtin source "$sources"
 }
 
 # ---------------------------------------------------------------------------- #
@@ -245,7 +268,7 @@ zmodload zsh/pcre
     }
 
     # allow for per-git-command verbosity levels via GIT_BY_ID[VERBOSITY__git-<COMMAND>]
-    verbosity=$(( max(${GIT_BY_ID_VERBOSITY:-0}, ${GIT_BY_ID[VERBOSITY]:-0}) ))
+    verbosity=$(( max(verbosity, ${GIT_BY_ID_VERBOSITY:-0}, ${GIT_BY_ID[VERBOSITY]:-0}) ))
 
     if [[ "$1" == "$GIT_BY_ID[GIT_CMD]" ]] {
         verbosity=0
@@ -262,37 +285,79 @@ zmodload zsh/pcre
 
 # ----------------------------- helper funcitons ----------------------------- #
 (( $+functions[git-bid-color] )) || function git-bid-color() {
-    [[ "$1" == stderr ]] && extra="a = STDERRIZE(a);"
-    gawk -i stdlib.awk -v outfile="/dev/$1" '
-    function foo(hello) { return "there"; }
-    function recolor(expression, colorize) { a = gensub(expression, colorize, "g", a); }
-    BEGIN {
-        M1="\\1"
-        M2="\\2"
+    local u=0
+    [[ "$1" == 'stderr' ]] && u=1
+    while IFS= read -u$u -r line ; do
+        # line=${line/origin/"%F{red}origin%f"}
+        print -P "$line"
+    done
+    # while read -u$u -rd= line ; {
 
+        # echo $line
+        # line=${line/zmodload/"%F{red}zmodload%f"}
         # git
-        recolors["(CONFLICT)"] = RED(M1)
-        recolors["(fatal:)(.*)"] = BRIGHT_RED(M1)RED(M2)
-        recolors["(Continuing in [[:digit:].]+ seconds)"] = YELLOW(M1)
-        recolors["(Everything up-to-date)"] = GREEN(M1)
+        # if [[ "$line" =~ "(CONFLICT)"] {
+        #     RED(M1)
+        # }
+        # if [[ "$line" =~ "(fatal:)(.*)"] {
+        #     BRIGHT_RED(M1)RED(M2)
+        # }
+        # if [[ "$line" =~ "(Continuing in [[:digit:].]+ seconds)"] {
+        #     YELLOW(M1)
+        # }
+        # if [[ "$line" =~ "(Everything up-to-date)"] {
+        #     GREEN(M1)
+        # }
+        
+        # # pre-commit
+        # if [[ "$line" =~ "(Passed)$"] {
+        #     GREEN(M1)
+        # }
+        # if [[ "$line" =~ "(Skipped)$"] {
+        #     YELLOW(M1)
+        # }
+        # if [[ "$line" =~ "(.*Failed)$"] {
+        #     RED(M1)
+        # }
 
-        # pre-commit
-        recolors["(Passed)$"] = GREEN(M1)
-        recolors["(Skipped)$"] = YELLOW(M1)
-        recolors["(.*Failed)$"] = RED(M1)
+        # # branches
+        # if [[ "$line" =~ "(master)"] {
+        #     MAGENTA(M1);
+        # }
+        # if [[ "$line" =~ "(main)"] {
+        #     MAGENTA(M1);
+        # }
+    # }
+    # gawk -i stdlib.awk -v outfile="/dev/$1" '
+    # function foo(hello) { return "there"; }
+    # function recolor(expression, colorize) { a = gensub(expression, colorize, "g", a); }
+    # BEGIN {
+    #     M1="\\1"
+    #     M2="\\2"
 
-        # branches
-        recolors["(master)"] = MAGENTA(M1);
-        recolors["(main)"] = MAGENTA(M1);
-    }
-    {
-        a = $0
-        for (expr in recolors) {
-            a = gensub(expr, recolors[expr], "g", a)
-        }
-        '$extra'
-        print(a) > outfile;
-    }' -
+    #     # git
+    #     recolors["(CONFLICT)"] = RED(M1)
+    #     recolors["(fatal:)(.*)"] = BRIGHT_RED(M1)RED(M2)
+    #     recolors["(Continuing in [[:digit:].]+ seconds)"] = YELLOW(M1)
+    #     recolors["(Everything up-to-date)"] = GREEN(M1)
+
+    #     # pre-commit
+    #     recolors["(Passed)$"] = GREEN(M1)
+    #     recolors["(Skipped)$"] = YELLOW(M1)
+    #     recolors["(.*Failed)$"] = RED(M1)
+
+    #     # branches
+    #     recolors["(master)"] = MAGENTA(M1);
+    #     recolors["(main)"] = MAGENTA(M1);
+    # }
+    # {
+    #     a = $0
+    #     for (expr in recolors) {
+    #         a = gensub(expr, recolors[expr], "g", a)
+    #     }
+    #     '$extra'
+    #     print(a) > outfile;
+    # }' -
 }
 
 (( $+functions[git-bid-config] )) || function git-bid-config() {
