@@ -36,7 +36,7 @@ zmodload zsh/pcre
     : "${GIT_BY_ID[VERBOSITY]:=2}"
 
     # enable color
-    : "${GIT_BY_ID[NO_COLOR]:=0}"
+    : "${GIT_BY_ID[NO_COLOR]:=1}"
     : "${GIT_BY_ID[EXTRA_COLOR]:=0}"
 
     # debug log of every git-by-id command
@@ -61,11 +61,19 @@ zmodload zsh/pcre
         'git-both=%F{magenta}%B~%b%F{red}'
         'git-mod=%F{yellow}+'
         'arrow=%F{magenta}  --> %F{yellow}'
+        'ok=%F{green}'
+        'warn=%F{#FFA500}'
+        'error=%F{red}'
     )
     : "${GIT_BY_ID[THEME]:=${(j@:@)_theme}}"
 
     for segment in ${(s@:@)GIT_BY_ID[THEME]} ; {
         if [[ "$segment" =~ "^([a-z-]+)=(.*)$" ]] {
+            if (( $GIT_BY_ID[NO_COLOR] )) {
+                segment=$segment
+                # TODO: support NO_COLOR
+                # need to strip %F\{.*\},%f,%B,%b
+            }
             GIT_BY_ID[THEME_$match[1]]="${match[2]}"
         } else {
             print -u2 "'$segment' is an invalid theme option"
@@ -500,7 +508,7 @@ zmodload zsh/pcre
         local sleep_time=$(printf '%.1f' $(($(git-bid-config help.autocorrect) / 10.0)) )
 
         msg=(
-            "%F{$_orange}WARNING%f: You tried to make a branch that already exists."
+            "${GIT_BY_ID[THEME_warn]}WARNING%f: You tried to make a branch that already exists."
             "Continuing in $sleep_time seconds, assuming that you meant 'checkout'."
         )
         print -Pu2 ${(j:\n:)msg}
