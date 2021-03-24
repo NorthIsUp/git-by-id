@@ -245,7 +245,7 @@ zmodload zsh/pcre
     }
 
     # allow for per-git-command verbosity levels via GIT_BY_ID[VERBOSITY__git-<COMMAND>]
-    verbosity=$(( max(${GIT_BY_ID[VERBOSITY]:-0}, ${GIT_BY_ID[VERBOSITY]:-0}) ))
+    verbosity=$(( max(${GIT_BY_ID_VERBOSITY:-0}, ${GIT_BY_ID[VERBOSITY]:-0}) ))
 
     if [[ "$1" == "$GIT_BY_ID[GIT_CMD]" ]] {
         verbosity=0
