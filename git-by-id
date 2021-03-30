@@ -65,12 +65,14 @@ zmodload zsh/pcre
         'warn=%F{#FFA500}'
         'error=%F{red}'
     )
+
     : "${GIT_BY_ID[THEME]:=${(j@:@)_theme}}"
 
     for segment in ${(s@:@)GIT_BY_ID[THEME]} ; {
         if [[ "$segment" =~ "^([a-z-]+)=(.*)$" ]] {
             if (( $GIT_BY_ID[NO_COLOR] )) {
                 segment=$segment
+                # ${segment:gs/%F{\*\}//}
                 # TODO: support NO_COLOR
                 # need to strip %F\{.*\},%f,%B,%b
             }
@@ -261,13 +263,11 @@ zmodload zsh/pcre
 }
 
 # ----------------------------------- utils ---------------------------------- #
-(( $+functions[xlg-error] )) || function xlg-error() {
-    xlg %"F{red}%B$@%b%f"
-}
-
-(( $+functions[xlg-debug] )) || function xlg-debug() {
-    (( GIT_BY_ID[VERBOSITY] >= 2 )) && xlg "%F{black}$@%f"
-}
+(( $+functions[xlg] )) || function xlg() { print -Pu2 "+> $@" }
+(( $+functions[xlg-print] )) || function xlg-print() { xlg %"F{white}$@%f"}
+(( $+functions[xlg-warn] )) || function xlg-warn() { xlg %"F{yellow}$@%f"}
+(( $+functions[xlg-error] )) || function xlg-error() { xlg %"F{red}%B$@%b%f"}
+(( $+functions[xlg-debug] )) || function xlg-debug() { (( GIT_BY_ID[VERBOSITY] >= 2 )) && xlg "%F{black}$@%f"}
 
 (( $+functions[xlg-cmd] )) || function xlg-cmd() {
     # helper to log a command to stderr
@@ -288,10 +288,6 @@ zmodload zsh/pcre
     (( verbosity >= 1 )) && xlg "%B$1%b ${@:2}"
 
     "$@"
-}
-
-(( $+functions[xlg] )) || function xlg() {
-    print -Pu2 "+> $@"
 }
 
 # ----------------------------- helper funcitons ----------------------------- #
@@ -389,7 +385,8 @@ zmodload zsh/pcre
 (( $+functions[git-bid-clean-vars] )) || function git-bid-clean-vars() {
     # reset the vairables used in each run
     typeset -g \
-        GIT_IDS_COUNT=0
+        GIT_IDS_COUNT=0 \
+        GIT_IDS_LAST_RUN=${EPOCHREALTIME:-1}
 
     typeset -Ag \
         GIT_IDS=() \
@@ -556,7 +553,8 @@ zmodload zsh/pcre
         remove \
         args=() \
         cmd \
-        i
+        i \
+        doublechecked=0
 
     zparseopts -E -D -- \
         -byid-branch=branch \
@@ -566,6 +564,13 @@ zmodload zsh/pcre
 
 
     function prel() {
+        # when no numbers are set re-check for numbers
+        if (( !GIT_IDS_COUNT && !doublechecked++ )) {
+            # (this can happen if git is being run in a subshell)
+            xlg-debug "running '${args[@]}' with no GIT_IDS_COUNT, re-checking for numbers"
+            [[ "$branch" ]] && git-bid-number-branch || git-bid-number
+        }
+
         (( $+GIT_IDS[$1] )) || {
             xlg-error "id [$1] hasn't been set yet"
             return 1
@@ -692,7 +697,7 @@ zmodload zsh/pcre
 
     zparseopts -E -D -- q=quiet -quiet=quiet
 
-    git_status=( "${(f@)$(/usr/bin/env git $git_args status "$@")}" )
+    git_status=( "${(f@)$($GIT_BY_ID[GIT_CMD] $git_args status "$@")}" )
     GIT_IDS_COUNT=0
 
     # local ob="${fg[black]}[$reset_color" cb="${fg[black]}]$reset_color"
