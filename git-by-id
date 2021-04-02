@@ -570,6 +570,7 @@ zmodload zsh/pcre
             # (this can happen if git is being run in a subshell)
             [[ "$branch" ]] && cmd=git-bid-number-branch || cmd=git-bid-number
             xlg-debug "running '${args[@]}' with no GIT_IDS_COUNT, checking for '$cmd'"
+            $cmd
         }
 
         (( $+GIT_IDS[$1] )) || {
