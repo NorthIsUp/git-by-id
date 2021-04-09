@@ -51,6 +51,22 @@ zmodload zsh/pcre
     # the git id variable prefix, defaults to "g"
     : "${GIT_BY_ID[PREFIX_VAR]:=g}"
 
+    # autocorrect when you combine creating a new branch with a commit message
+    #    git checkout -b '[some feature] some message'
+    # becomes
+    #    git checkout -b some_feature/next
+    #    git commit -m '[some feature] some message'
+    : "${GIT_BY_ID[AUTOCORRECT_COMMIT_OOPS_BRANCH]:=1}"
+
+    # Checkout a branch if it already exists.
+    : "${GIT_BY_ID[AUTOCORRECT_BRANCH_ALREADY_EXISTS]:=1}"
+
+    # Enable autoincrementing branch names
+    #    git checkout -b some-branch/next
+    # becomes
+    #    git checkout -b some-branch/1
+    : "${GIT_BY_ID[BRANCH_NEXT_TO_NUMBER]:=1}"
+
     # setup the theme
     local _theme=(
         'ob=%F{black}['
@@ -145,6 +161,7 @@ zmodload zsh/pcre
         bid_funcs=(
             ${(k)functions[(I)git-by-id*]}
             ${(k)functions[(I)git-bid*]}
+            ${(k)functions[(I)__git-bid*]}
         )
 
     xlg "%B%F{yellow}====> scrubbing git-by-id environment%b%f"
@@ -182,6 +199,13 @@ zmodload zsh/pcre
 # ---------------------------------------------------------------------------- #
 (( $+functions[git-bid] )) || function git-bid() {
     [[ "$__trace__" ]] && set -x || set +x
+
+    # zparseopts -D -E -- \
+    #     v+=flag_v -verbose+=flag_v \
+    #     q+=flag_q -quiet+=flag_q
+
+    # (( GIT_BY_ID_VERBOSITY = $#flag_v - $#flag_q ))
+
     local \
         extra_args=() \
         cmd="$GIT_BY_ID[GIT_CMD]" \
@@ -266,13 +290,14 @@ zmodload zsh/pcre
 (( $+functions[xlg] )) || function xlg() { print -Pu2 "+> $@" }
 (( $+functions[xlg-trace] )) || function xlg-trace() { (( GIT_BY_ID[VERBOSITY] >= 3 )) && xlg "%F{black}$@%f" }
 (( $+functions[xlg-debug] )) || function xlg-debug() { (( GIT_BY_ID[VERBOSITY] >= 2 )) && xlg "%F{black}$@%f" }
+(( $+functions[xlg-info] )) || function xlg-info() { (( GIT_BY_ID[VERBOSITY] >= 1 )) && xlg "%F{black}$@%f" }
 (( $+functions[xlg-print] )) || function xlg-print() { xlg %"F{white}$@%f" }
 (( $+functions[xlg-warn] )) || function xlg-warn() { xlg %"F{yellow}$@%f" }
 (( $+functions[xlg-error] )) || function xlg-error() { xlg %"F{red}%B$@%b%f" }
 
 (( $+functions[xlg-cmd] )) || function xlg-cmd() {
     # helper to log a command to stderr
-    local -i verbosity=0
+    local -i verbosity=0 v1=0 v2=0
 
     [[ "$1" =~ '-v|--verbose' ]] && {
         verbosity=2
@@ -281,8 +306,8 @@ zmodload zsh/pcre
 
     # allow for per-git-command verbosity levels via GIT_BY_ID[VERBOSITY__git-<COMMAND>]
     ((
-        local v1=${GIT_BY_ID_VERBOSITY:-0},
-        local v2=${GIT_BY_ID[VERBOSITY]:-0},
+        v1=${GIT_BY_ID_VERBOSITY:-0},
+        v2=${GIT_BY_ID[VERBOSITY]:-0},
         
         verbosity=verbosity > v1 ? verbosity : v1,
         verbosity=verbosity > v2 ? verbosity : v2
@@ -375,8 +400,12 @@ zmodload zsh/pcre
 }
 
 (( $+functions[git-bid-config] )) || function git-bid-config() {
-    __config_ret=$(${GIT_BY_ID[GIT]} config $@ 2>/dev/null)
-    print "$__config_ret"
+    local config_result="$(${GIT_BY_ID[GIT]} config $@ 2>/dev/null)"
+    if (( $status == 0 )) && [[ "$config_result" ]] {
+        print "$config_result"
+    } else {
+        return $status
+    }
 }
 
 (( $+functions[git-bid-shell-usage] )) || function git-bid-shell-usage() {
@@ -449,7 +478,7 @@ zmodload zsh/pcre
         # check for -b group/project-next
         (( bi++ ))
         local co_branch=${@[$bi]}
-        if [[ "$co_branch" =~ "next" ]] {
+        if (( ${GIT_BY_ID[BRANCH_NEXT_TO_NUMBER]} )) && [[ "$co_branch" =~ "next" ]] {
             local \
                 group="$(whoami)" \
                 project='' \
@@ -466,22 +495,20 @@ zmodload zsh/pcre
                 flavor="$match[3]"
             }
 
-            local config_key="git-bid.${group}-${project}"
+            local group_project=($group $project)
+            local config_key="git-bid.${(j:-:)group_project:gs/_/-/}"
             local counter=${$(git-bid-config "$config_key"):-0}
 
             git-bid-config --replace-all --int "$config_key" $(( ++counter ))
 
-            [[ "$project" ]] && project="$project-"
-            [[ "$flavor" ]] && flavor="-$flavor"
-
-            co_branch="$group/$project$counter$flavor"
+            local project_counter_flavor=($project $counter $flavor)
+            co_branch="$group/${(j:-:)project_counter_flavor}"
 
             xlg "next branch: %F{magenta}$co_branch%f"
 
-            args=($@)
+            local args=($@)
             args[$bi]="$co_branch"
             set - $args
-
         }
     }
 
@@ -507,7 +534,7 @@ zmodload zsh/pcre
 (( $+functions[__git-bid-handle-accidental-branch] )) || function __git-bid-handle-accidental-branch() {
     # if status is 128 check to see if this was an "accidental branch creation"
     result=$(git-bid-number-expand --byid-execute --byid-branch $cmd "$@" 2>&1)
-    if [[ "$result" =~ "fatal: A branch named '(.*)' already exists." ]] {
+    if (( ${GIT_BY_ID[AUTOCORRECT_BRANCH_ALREADY_EXISTS]} )) && [[ "$result" =~ "fatal: A branch named '(.*)' already exists." ]] {
         local branch="${match[1]}"
         local sleep_time=$(printf '%.1f' $(($(git-bid-config help.autocorrect) / 10.0)) )
 
@@ -515,14 +542,31 @@ zmodload zsh/pcre
             "${GIT_BY_ID[THEME_warn]}WARNING%f: You tried to make a branch that already exists."
             "Continuing in $sleep_time seconds, assuming that you meant 'checkout'."
         )
-        print -Pu2 ${(j:\n:)msg}
-
+        print -Pu2 "${(j:\n:)msg}"
         sleep $sleep_time
 
         xlg-cmd $cmd $1 "$branch"
         return $status
+    } elif (( ${GIT_BY_ID[AUTOCORRECT_COMMIT_OOPS_BRANCH]} )) && [[ "$result" =~ "fatal: '\[(.*)\] (.*)' is not a valid branch name." ]] {
+        local \
+            message="[${match[1]}] ${match[2]}" \
+            new_branch="${match[1]:gs/ /_/}/next" \
+            commit_msg="[${match[1]}] ${match[2]}" \
+            sleep_time=$(printf '%.1f' $(($(git-bid-config help.autocorrect) / 10.0)) )
+
+        msg=(
+            "${GIT_BY_ID[THEME_warn]}WARNING%f: You tried to use a commit message for a branch name."
+            "Continuing in $sleep_time seconds assuming that you meant..."
+            "    %F{green}git %F{magenta}checkout -b %F{white}\"%F{yellow}$new_branch%F{white}\"%f"
+            "    %F{green}git %F{magenta}commit -m %F{white}\"%F{yellow}$commit_msg%F{white}\"%f"
+        )
+        print -Pu2 "${(j:\n:)msg}"
+        sleep $sleep_time
+
+        xlg-cmd git-bid checkout -b "$new_branch" \
+            && xlg-cmd git-bid commit -m "$commit_msg"
+        return $status
     }
-    return 0
 }
 
 # ------------------------------- git-bid-push ------------------------------- #
