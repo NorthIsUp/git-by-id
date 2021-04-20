@@ -36,7 +36,7 @@ zmodload zsh/pcre
     : "${GIT_BY_ID[VERBOSITY]:=2}"
 
     # enable color
-    : "${GIT_BY_ID[NO_COLOR]:=1}"
+    : "${GIT_BY_ID[NO_COLOR]:=0}"
     : "${GIT_BY_ID[EXTRA_COLOR]:=0}"
 
     # debug log of every git-by-id command
@@ -80,6 +80,16 @@ zmodload zsh/pcre
         'ok=%F{green}'
         'warn=%F{#FFA500}'
         'error=%F{red}'
+        'black=%F{black}'
+        'red=%F{red}'
+        'green=%F{green}'
+        'yellow=%F{yellow}'
+        'blue=%F{blue}'
+        'magenta=%F{magenta}'
+        'cyan=%F{cyan}'
+        'white=%F{white}'
+        'default=%F{default}'
+        'reset=%f'
     )
 
     : "${GIT_BY_ID[THEME]:=${(j@:@)_theme}}"
@@ -91,8 +101,11 @@ zmodload zsh/pcre
                 # ${segment:gs/%F{\*\}//}
                 # TODO: support NO_COLOR
                 # need to strip %F\{.*\},%f,%B,%b
+                GIT_BY_ID[THEME_$match[1]]=""
+            } else {
+                GIT_BY_ID[THEME_$match[1]]="${match[2]}"
             }
-            GIT_BY_ID[THEME_$match[1]]="${match[2]}"
+            
         } else {
             print -u2 "'$segment' is an invalid theme option"
         }
@@ -157,6 +170,9 @@ zmodload zsh/pcre
 (( $+functions[git-bid-teardown] )) || function git-bid-teardown() {
     local \
         arrow=$GIT_BY_ID[THEME_arrow] \
+        yellow=$GIT_BY_ID[THEME_yellow] \
+        white=$GIT_BY_ID[THEME_white] \
+        reset=$GIT_BY_ID[THEME_reset] \
         sources=("${functions_source[git-by-id]}") \
         bid_funcs=(
             ${(k)functions[(I)git-by-id*]}
@@ -164,28 +180,27 @@ zmodload zsh/pcre
             ${(k)functions[(I)__git-bid*]}
         )
 
-    xlg "%B%F{yellow}====> scrubbing git-by-id environment%b%f"
+    xlg "%B${GIT_BY_ID[THEME_yellow]}====> scrubbing git-by-id environment%b${GIT_BY_ID[THEME_reset]}"
 
-
-    xlg "$arrow cleaning config%f"
+    xlg "$arrow cleaning config$reset"
     typeset +r GIT_BY_ID
     (( $+GIT_BY_ID[__SETUP__] )) && GIT_BY_ID[__SETUP__]=
 
-    xlg "$arrow cleaning variables%f"
+    xlg "$arrow cleaning variables$reset"
     xlg-cmd git-bid-clean-vars
 
-    xlg "$arrow unloading functions%F{white}:" "\n+> "'      %F{white}- %F{yellow}'${^bid_funcs}'%f'
+    xlg "$arrow unloading functions$white:" "\n+>       $white- $yellow"${^bid_funcs}"$reset"
     xlg-cmd unfunction $bid_funcs
 
-    xlg "$arrow autoloading git-by-id%f"
+    xlg "$arrow autoloading git-by-id$reset"
     xlg-cmd autoload git-by-id
 
     [[ "$@" =~ '--no-setup' ]] && return
     
-    xlg "$arrow force loading git-by-id%f"
+    xlg "$arrow force loading git-by-id$reset"
     for line in ${(f)"$(shasum $sources)"} ; {
         if [[ $line =~ '^([a-z0-9]+) (.*)$' ]] {
-            xlg "$arrow ${match[1][1,7]}%f %F{white}${match[2]}%f"
+            xlg "$arrow ${match[1][1,7]} $white${match[2]}$reset"
         } else {
             xlg  "$line"
         }
@@ -220,7 +235,7 @@ zmodload zsh/pcre
     # unwrap the cmd to see if it is an alias, then use that for 
     unwrapped_cmd="${GIT_BY_ID[ALIAS_$1]:-$1}"
     [[ "$1" != "$unwrapped_cmd" ]] && {
-        xlg "%F{white}[%F{green}git %F{magenta}$1 %F{white}-> %F{green}git %F{magenta}$unwrapped_cmd%F{white}]%f"
+        xlg "${GIT_BY_ID[THEME_white]}[${GIT_BY_ID[THEME_green]}git ${GIT_BY_ID[THEME_magenta]}$1 ${GIT_BY_ID[THEME_white]}-> ${GIT_BY_ID[THEME_green]}git ${GIT_BY_ID[THEME_magenta]}$unwrapped_cmd${GIT_BY_ID[THEME_white]}]%f"
     }
 
     case "$unwrapped_cmd" {
