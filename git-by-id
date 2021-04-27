@@ -565,7 +565,7 @@ zmodload zsh/pcre
     } elif (( ${GIT_BY_ID[AUTOCORRECT_COMMIT_OOPS_BRANCH]} )) && [[ "$result" =~ "fatal: '\[(.*)\] (.*)' is not a valid branch name." ]] {
         local \
             message="[${match[1]}] ${match[2]}" \
-            new_branch="${match[1]:gs/ /_/}/next" \
+            new_branch="${match[1]:gs/ /_/}/next-${match[2]:gs/ /-/}" \
             commit_msg="[${match[1]}] ${match[2]}" \
             sleep_time=$(printf '%.1f' $(($(git-bid-config help.autocorrect) / 10.0)) )
 
@@ -579,7 +579,7 @@ zmodload zsh/pcre
         sleep $sleep_time
 
         xlg-cmd git-bid checkout -b "$new_branch" \
-            && xlg-cmd git-bid commit -m "$commit_msg"
+            && xlg-cmd git-bid commit -am "$commit_msg"
         return $status
     }
 }
