@@ -7,7 +7,6 @@ zmodload zsh/pcre
 #                                   Git By Id                                  #
 # ---------------------------------------------------------------------------- #
 
-
 # ------------------------------- git-bid-setup ------------------------------ #
 (( $+GIT_BY_ID[__SETUP__] )) || {
     # set up completions
@@ -31,7 +30,13 @@ zmodload zsh/pcre
     # full path to the git command, this path is what is actually used byt git-by-id
     : "${GIT_BY_ID[GIT_CMD]:=$commands[$GIT_BY_ID[GIT]]}"
 
-    # log lots of output, options are {0, 1, 2}
+    # log lots of output, options are
+    #   4 - trace
+    #   3 - debug
+    #   2 - info
+    #   1 - warn
+    #   0 - error
+    #   -1 print (used for full silent)
     # per command verbosity levels via GIT_BY_ID[VERBOSITY__git-<COMMAND>]
     : "${GIT_BY_ID[VERBOSITY]:=2}"
 
@@ -66,6 +71,9 @@ zmodload zsh/pcre
     # becomes
     #    git checkout -b some-branch/1
     : "${GIT_BY_ID[BRANCH_NEXT_TO_NUMBER]:=1}"
+
+    # Replace "master" in commands with "main" for modern repos
+    : "${GIT_BY_ID[COERSE_TO_MAIN]:=1}"
 
     # setup the theme
     local _theme=(
@@ -145,8 +153,25 @@ zmodload zsh/pcre
     git-bid-entrypoint "$@"
     return $status
 } || function git-bid-entrypoint() {
+    zparseopts -D -E -- \
+        v+=flag_v -verbose+=flag_v \
+        q+=flag_q -quiet+=flag_q \
+        -silent=silent
+
+    # set up local verbosity variable for this invocation
+    # verbosity is checked in the following order
+    #   1. cli args
+    #   2. GIT_BY_ID_VERBOSITY
+    #   3. GIT_BY_ID[VERBOSITY]
+    local -i _GIT_BY_ID_VERBOSITY=${GIT_BY_ID_VERBOSITY:-$GIT_BY_ID[VERBOSITY]}
+    [[ "$flag_v" || "$flag_q" ]] && (( _GIT_BY_ID_VERBOSITY = $#flag_v - $#flag_q ))
+    [[ "$silent" ]] && _GIT_BY_ID_VERBOSITY=-1
+    xlg-trace "set verbosity to $_GIT_BY_ID_VERBOSITY"
+
+    local start_time=$SECONDS
     if [[ "$1" == 'refunc' ]] {
         xlg-cmd git-bid-teardown
+        xlg-trace "total time in git-bid: $(( $SECONDS - $start_time ))"
         return $status
     } else {
         # run the function like normal!
@@ -163,6 +188,7 @@ zmodload zsh/pcre
             # run git-bid
             git-bid "$@"
         }
+        xlg-trace "total time in git-bid: $(( $SECONDS - $start_time ))"
         return $status
     }
 }
@@ -178,6 +204,7 @@ zmodload zsh/pcre
             ${(k)functions[(I)git-by-id*]}
             ${(k)functions[(I)git-bid*]}
             ${(k)functions[(I)__git-bid*]}
+            xlg-fixup
         )
 
     xlg "%B${GIT_BY_ID[THEME_yellow]}====> scrubbing git-by-id environment%b${GIT_BY_ID[THEME_reset]}"
@@ -215,12 +242,6 @@ zmodload zsh/pcre
 (( $+functions[git-bid] )) || function git-bid() {
     (( ${__trace__:-0} )) && set -x || set +x
 
-    # zparseopts -D -E -- \
-    #     v+=flag_v -verbose+=flag_v \
-    #     q+=flag_q -quiet+=flag_q
-
-    # (( GIT_BY_ID_VERBOSITY = $#flag_v - $#flag_q ))
-
     local \
         extra_args=() \
         cmd="$GIT_BY_ID[GIT_CMD]" \
@@ -235,7 +256,8 @@ zmodload zsh/pcre
     # unwrap the cmd to see if it is an alias, then use that for 
     unwrapped_cmd="${GIT_BY_ID[ALIAS_$1]:-$1}"
     [[ "$1" != "$unwrapped_cmd" ]] && {
-        xlg "${GIT_BY_ID[THEME_white]}[${GIT_BY_ID[THEME_green]}git ${GIT_BY_ID[THEME_magenta]}$1 ${GIT_BY_ID[THEME_white]}-> ${GIT_BY_ID[THEME_green]}git ${GIT_BY_ID[THEME_magenta]}$unwrapped_cmd${GIT_BY_ID[THEME_white]}]%f"
+        xlg-fixup green git magenta $1 -\> green git magenta $unwrapped_cmd
+        set - $unwrapped_cmd ${@[2,-1]}
     }
 
     case "$unwrapped_cmd" {
@@ -303,12 +325,46 @@ zmodload zsh/pcre
 
 # ----------------------------------- utils ---------------------------------- #
 (( $+functions[xlg] )) || function xlg() { print -Pu2 "+> $@" }
-(( $+functions[xlg-trace] )) || function xlg-trace() { (( GIT_BY_ID[VERBOSITY] >= 3 )) && xlg "%F{black}$@%f" }
-(( $+functions[xlg-debug] )) || function xlg-debug() { (( GIT_BY_ID[VERBOSITY] >= 2 )) && xlg "%F{black}$@%f" }
-(( $+functions[xlg-info] )) || function xlg-info() { (( GIT_BY_ID[VERBOSITY] >= 1 )) && xlg "%F{black}$@%f" }
-(( $+functions[xlg-print] )) || function xlg-print() { xlg %"F{white}$@%f" }
-(( $+functions[xlg-warn] )) || function xlg-warn() { xlg %"F{yellow}$@%f" }
-(( $+functions[xlg-error] )) || function xlg-error() { xlg %"F{red}%B$@%b%f" }
+(( $+functions[xlg-trace] )) || function xlg-trace() { (( _GIT_BY_ID_VERBOSITY >= 4 )) && xlg "%F{black}$@%f" }
+(( $+functions[xlg-debug] )) || function xlg-debug() { (( _GIT_BY_ID_VERBOSITY >= 3 )) && xlg "%F{black}$@%f" }
+(( $+functions[xlg-info] )) || function xlg-info() { (( _GIT_BY_ID_VERBOSITY >= 2 )) && xlg "%F{black}$@%f" }
+(( $+functions[xlg-warn] )) || function xlg-warn() { (( _GIT_BY_ID_VERBOSITY >= 1 )) && xlg %"F{yellow}$@%f" }
+(( $+functions[xlg-error] )) || function xlg-error() { (( _GIT_BY_ID_VERBOSITY >= 0 )) && xlg %"F{red}%B$@%b%f" }
+(( $+functions[xlg-print] )) || function xlg-print() { (( _GIT_BY_ID_VERBOSITY >= -1 )) && xlg %"F{white}$@%f" }
+
+(( $+functions[xlg-fixup] )) || function xlg-fixup() {
+    local \
+        white=${GIT_BY_ID[THEME_white]} \
+        magenta=${GIT_BY_ID[THEME_magenta]} \
+        reset=${GIT_BY_ID[THEME_reset]} \
+        msg c
+
+    while [[ "$@" ]] {
+        c="$1" ; shift
+        case $c {
+            '[') msg="${msg%%[[:blank:]]##} ${white}$c$reset" ;;
+            ']') msg="${msg%%[[:blank:]]##}${white}$c $reset" ;;
+            '->') msg+="$white$c $reset" ;;
+            '--') break ;;
+            *)
+                (( $+GIT_BY_ID[THEME_$c] )) \
+                    && msg+="$GIT_BY_ID[THEME_$c]" \
+                    || msg+="$c "
+                ;;
+        }
+    }
+    # strip whitespace
+    msg=${${msg##[[:blank:]]##}%%[[:blank:]]##}
+
+    # add brackets if missing
+    if [[ ! "$msg" =~ '.*\[.*\].*' ]] {
+        msg="${white}[${msg}${white}]"
+    }
+
+    # add any extra
+    [[ "$@" ]] && msg+=" ${magenta}${@}"
+    xlg-info "$msg$reset"
+}
 
 (( $+functions[xlg-cmd] )) || function xlg-cmd() {
     # helper to log a command to stderr
@@ -321,7 +377,7 @@ zmodload zsh/pcre
 
     # allow for per-git-command verbosity levels via GIT_BY_ID[VERBOSITY__git-<COMMAND>]
     ((
-        v1=${GIT_BY_ID_VERBOSITY:-0},
+        v1=${_GIT_BY_ID_VERBOSITY:-0},
         v2=${GIT_BY_ID[VERBOSITY]:-0},
         
         verbosity=verbosity > v1 ? verbosity : v1,
@@ -453,23 +509,21 @@ zmodload zsh/pcre
 # ------------------------------- git-bid-tgit ------------------------------- #
 (( $+functions[git-bid-tgit] )) || function git-bid-tgit() {
     # handle `gi t` and `git git`
-    local _g=$fg[green] _m=$fg[magenta] _w=$fg[white] _r=$fg[red] _rc=$reset_color \
-        msg args
-
-    [[ "${@:3}" ]] && local extra=" $_m${@:3}$_rc"
     case $1 {
         (t)
-            msg="${_w}[${_g}gi ${_r}t${_m}${2#t} ${_w}-> ${_g}git ${_m}${2#t}${_w}]$_rc$extra$_rc"
-            args=("${2#t}" "${@:3}")
+            if [[ "${2#t}" ]] {
+                xlg-fixup green gi red t magenta ${2#t} -\> green git magenta ${2#t} -- ${@:3}
+                git-bid "${2#t}" "${@:3}"
+            } else {
+                xlg-fixup green gi red t -\> green git -- ${@:3}
+                git-bid "${@:3}"
+            }
             ;;
         (git)
-            msg="${_w}[${_g}git ${_r}git ${_m}${2} ${_w}-> ${_g}git ${_m}${2}${_w}]$_rc$extra$_rc"
-            args=("${@:2}")
+            xlg-fixup green git red git magenta -\> green git -- ${@:2}
+            git-bid "${@:2}"
             ;;
     }
-
-    xlg "$msg"
-    git-bid $args
 }
 
 # ------------------------------ git-bid-stash ------------------------------ #
@@ -483,16 +537,35 @@ zmodload zsh/pcre
         return $status
     }
 
-    git-bid-number "$@[2,-1]"
+    git-bid-number "${@[2,-1]}"
 }
 
 # ----------------------------- git-bid-checkout ----------------------------- #
 (( $+functions[git-bid-checkout] )) || function git-bid-checkout() {
-    local bi  # -b index
-    if (( ${GIT_BY_ID[BRANCH_NEXT_TO_NUMBER]} )) && [[ ${bi:=${@[(i)-b]}} -le ${#@} ]] {
+    # index of argumets like '-b' or 'master'
+    local \
+        dash_b_index=${@[(i)-b]} \
+        master_index=${@[(i)master]} 
+
+    has_master_branch="$($GIT_BY_ID[GIT_CMD] branch --list master)"
+    has_main_branch="$($GIT_BY_ID[GIT_CMD] branch --list main)"
+
+    if (( ${GIT_BY_ID[COERSE_TO_MAIN]} )) && [[ 
+        "$master_index" -le ${#@}
+        && -z "$has_master_branch"
+        && "$has_main_branch"
+    ]] {
+        xlg-fixup green git red master -\> green git magenta main -- ${@[3,-1]}
+        local args=($@)
+        args[$master_index]="main"
+        set - $args
+    }
+
+    # xlg $dash_b_index
+    if (( ${GIT_BY_ID[BRANCH_NEXT_TO_NUMBER]} )) && [[ $dash_b_index -le ${#@} ]] {
         # check for -b group/project-next
-        (( bi++ ))
-        local co_branch=${@[$bi]}
+        (( dash_b_index++ ))
+        local co_branch=${@[$dash_b_index]}
         if [[ "$co_branch" =~ "next" ]] {
             local \
                 group="$(whoami)" \
@@ -519,10 +592,10 @@ zmodload zsh/pcre
             local project_counter_flavor=($project $counter $flavor)
             co_branch="$group/${(j:-:)project_counter_flavor}"
 
-            xlg "next branch: %F{magenta}$co_branch%f"
+            xlg-info "next branch: %F{magenta}$co_branch%f"
 
             local args=($@)
-            args[$bi]="$co_branch"
+            args[$dash_b_index]="$co_branch"
             set - $args
         }
     }
@@ -539,7 +612,7 @@ zmodload zsh/pcre
             co_status=$status
             ;;
     }
-    if (( co_status )) && [[ "$bi" && "$config_key" && "$counter" ]] {
+    if (( co_status )) && [[ "$dash_b_index" && "$config_key" && "$counter" ]] {
         # decrement the counter if we failed to make the branch
         git-bid-config --replace-all --int "$config_key" $(( --counter ))
     }
