@@ -257,7 +257,8 @@ zmodload zsh/pcre
     unwrapped_cmd="${GIT_BY_ID[ALIAS_$1]:-$1}"
     [[ "$1" != "$unwrapped_cmd" ]] && {
         xlg-fixup green git magenta $1 -\> green git magenta $unwrapped_cmd
-        set - $unwrapped_cmd ${@[2,-1]}
+        # don't do this, it will eat the alias!
+        # set - $unwrapped_cmd ${@[2,-1]} 
     }
 
     case "$unwrapped_cmd" {
