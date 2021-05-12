@@ -389,7 +389,13 @@ zmodload zsh/pcre
         verbosity=0
     }
 
-    (( verbosity >= 1 )) && xlg "%B$1%b ${@:2}"
+    if (( verbosity == 1 )) {
+        xlg "%B$1%b ${@:2}"
+    } elif (( verbosity == 2 )) {
+        xlg "%B$1%b ${(qqqq)@:2}"
+    } else {
+        xlg-trace "%B$1%b ${(qqqq)@:2}"
+    }
 
     "$@"
 }
@@ -510,18 +516,18 @@ zmodload zsh/pcre
 # ------------------------------- git-bid-tgit ------------------------------- #
 (( $+functions[git-bid-tgit] )) || function git-bid-tgit() {
     # handle `gi t` and `git git`
-    case $1 {
+    case "$1" {
         (t)
             if [[ "${2#t}" ]] {
-                xlg-fixup green gi red t magenta ${2#t} -\> green git magenta ${2#t} -- ${@:3}
+                xlg-fixup green gi red t magenta "${2#t}" -\> green git magenta "${2#t}" -- "${@:3}"
                 git-bid "${2#t}" "${@:3}"
             } else {
-                xlg-fixup green gi red t -\> green git -- ${@:3}
+                xlg-fixup green gi red t -\> green git -- "${@:3}"
                 git-bid "${@:3}"
             }
             ;;
         (git)
-            xlg-fixup green git red git magenta -\> green git -- ${@:2}
+            xlg-fixup green git red git magenta -\> green git -- "${@:2}"
             git-bid "${@:2}"
             ;;
     }
@@ -556,7 +562,7 @@ zmodload zsh/pcre
         && -z "$has_master_branch"
         && "$has_main_branch"
     ]] {
-        xlg-fixup green git red master -\> green git magenta main -- ${@[3,-1]}
+        xlg-fixup green git red master -\> green git magenta main -- "${@[3,-1]}"
         local args=($@)
         args[$master_index]="main"
         set - $args
@@ -733,14 +739,14 @@ zmodload zsh/pcre
 
     setopt re_match_pcre
     for arg in "$@"; do
-        xlg-trace "arg: $arg"
+        xlg-trace "arg: ${(qqqq)arg}"
         if [[ "$arg" =~ ^[0-9]{1,4}$ ]] {
             # Substitute $e{*} variables for any integers
             if [[ -e "$arg" ]] {
                 # Don't expand files or directories with numeric names
                 args+="$arg"
             } else {
-                prel $arg || return $status
+                prel "$arg" || return $status
             }
         } elif [[ "$arg" =~ ^([0-9]{1,4})(?:[-,]|[.]{2})([0-9]{1,4})$ ]] {
             # Expand ranges into $e{*} variables
@@ -749,17 +755,16 @@ zmodload zsh/pcre
             }
         } else {
             # Otherwise, treat $arg as a normal string.
-            args+="$arg"
+            args+=$arg
         }
     done
 
-    cmd=( ${args[@]} )
-    xlg-trace "expanded $cmd"
+    xlg-trace "expanded args to: "${(qqqq)args}
     if [[ "$execute" ]] {
-        xlg-cmd $cmd
+        xlg-cmd $args
         return $status
     } else {
-        print "$cmd"
+        print "$args"
         return 0
     }
 
