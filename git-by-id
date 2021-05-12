@@ -380,7 +380,6 @@ zmodload zsh/pcre
     ((
         v1=${_GIT_BY_ID_VERBOSITY:-0},
         v2=${GIT_BY_ID[VERBOSITY]:-0},
-        
         verbosity=verbosity > v1 ? verbosity : v1,
         verbosity=verbosity > v2 ? verbosity : v2
     ))
