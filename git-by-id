@@ -918,8 +918,7 @@ zmodload zsh/pcre
         (( GIT_IDS_COUNT >= 10000 )) && output=${output//__id_pad_4/ }
         output=${output//__id_pad_[0-9]/}
 
-        print -P "$output"
-
+        print -nP "${output}"
     }
     return $(( !GIT_IDS_COUNT ))
 }
