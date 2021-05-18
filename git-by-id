@@ -844,9 +844,10 @@ zmodload zsh/pcre
 
     local \
         git_args=(-c color.status=always) \
-        output=() \
+        git_status=() \
         grouping \
         line section \
+        output=() \
         quiet
 
     git-bid-clean-vars
