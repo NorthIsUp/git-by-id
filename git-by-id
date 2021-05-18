@@ -159,7 +159,8 @@ zmodload zsh/pcre
     zparseopts -D -- \
         v+=flag_v -verbose+=flag_v \
         q+=flag_q -quiet+=flag_q \
-        -trace=flag_level -debug=flag_level -info=flag_level -warn=flag_level -error=flag_level -silent=flag_level
+        -trace=flag_level -debug=flag_level -info=flag_level \
+        -warn=flag_level -error=flag_level -silent=flag_level
 
     # set up local verbosity variable for this invocation
     # verbosity is checked in the following order
@@ -168,7 +169,7 @@ zmodload zsh/pcre
     #   3. GIT_BY_ID[VERBOSITY]
     local -i _GIT_BY_ID_VERBOSITY=${GIT_BY_ID_VERBOSITY:-$GIT_BY_ID[VERBOSITY]}
     [[ "$flag_v" || "$flag_q" ]] && (( _GIT_BY_ID_VERBOSITY = $#flag_v - $#flag_q ))
-    [[ "$flag_level" ]] && case $flag_level[1] {
+    [[ "$flag_level" ]] && case "${flag_level[1]}" {
         --trace) _GIT_BY_ID_VERBOSITY=4 ;;
         --debug) _GIT_BY_ID_VERBOSITY=3 ;;
         --info) _GIT_BY_ID_VERBOSITY=2 ;;
@@ -176,7 +177,7 @@ zmodload zsh/pcre
         --error) _GIT_BY_ID_VERBOSITY=0 ;;
         --silent) _GIT_BY_ID_VERBOSITY=-1 ;;
     }
-    xlg-trace "set verbosity to $_GIT_BY_ID_VERBOSITY"
+    xlg-debug "set verbosity to $_GIT_BY_ID_VERBOSITY"
 
     local start_time=$SECONDS
     if [[ "$1" == 'refunc' ]] {
