@@ -287,7 +287,7 @@ zmodload zsh/pcre
         (status)
             git-bid-number "${@[2,-1]}"
             ;;
-        (commit | add | merge )  # add verbose args
+        (commit | add | merge | mv)  # add verbose args
             extra_args+=--verbose
             ;&
         (commit | blame | add | log | rebase | merge | difftool)
@@ -663,12 +663,13 @@ zmodload zsh/pcre
             "${GIT_BY_ID[THEME_warn]}WARNING%f: You tried to use a commit message for a branch name."
             "Continuing in $sleep_time seconds assuming that you meant..."
             "    %F{green}git %F{magenta}checkout -b %F{white}\"%F{yellow}$new_branch%F{white}\"%f"
-            "    %F{green}git %F{magenta}commit -m %F{white}\"%F{yellow}$commit_msg%F{white}\"%f"
+            "    %F{green}git %F{magenta}commit -am %F{white}\"%F{yellow}$commit_msg%F{white}\"%f"
         )
         print -Pu2 "${(j:\n:)msg}"
         sleep $sleep_time
 
         xlg-cmd git-bid checkout -b "$new_branch" \
+            && print -s "${GIT_BY_ID[GIT]} commit -am \"$commit_msg\"" \
             && xlg-cmd git-bid commit -am "$commit_msg"
         return $status
     }
