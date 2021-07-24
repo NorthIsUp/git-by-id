@@ -562,7 +562,8 @@ zmodload zsh/pcre
     # index of argumets like '-b' or 'master'
     local \
         dash_b_index=${@[(i)-b]} \
-        master_index=${@[(i)master]} 
+        master_index=${@[(i)master]} \
+        expand_args=()
 
     has_master_branch="$($GIT_BY_ID[GIT_CMD] branch --list master)"
     has_main_branch="$($GIT_BY_ID[GIT_CMD] branch --list main)"
@@ -615,10 +616,12 @@ zmodload zsh/pcre
             args[$dash_b_index]="$co_branch"
             set - $args
         }
+        expand_args+=(--byid-branch)
     }
 
     # run the git checkout command
-    git-bid-number-expand --byid-execute --byid-branch $cmd "$@"
+    git-bid-number-expand --byid-execute $expand_args $cmd "$@"
+
     local co_status=$status
     case "$co_status" {
         ( 0 )
