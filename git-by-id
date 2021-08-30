@@ -150,9 +150,12 @@ zmodload zsh/pcre
 # -------------------------------- entrypoints ------------------------------- #
 (( $+functions[git-bid-entrypoint] )) && {
     # this short-cuts loading the rest of the file when already sourced
+    (( ${__trace__:-0} )) && set -x || set +x
     git-bid-entrypoint "$@"
-    return $status
-} || function git-bid-entrypoint() {
+    return "$status"
+}
+
+(( $+functions[git-bid-entrypoint] )) || function git-bid-entrypoint() {
     # git <git-bid-options> COMMAND <git-options>
     # this zparseopts only parses out options before the git command/alias (hence no -E)
     local flag_v flag_q flag_level
@@ -192,12 +195,15 @@ zmodload zsh/pcre
             # run output through a fancy colorizer (but its kinda broken)
             if [[ "$1" == diff ]] {
                 git-bid "$@" 2> >(git-bid-color stderr)
+                return $status
             } elif (( $+functions[git-bid-color] )) {
                 git-bid "$@" > >(git-bid-color stdout) 2> >(git-bid-color stderr)
+                return $status
             }
         } else {
             # run git-bid
             git-bid "$@"
+            return $status
         }
         xlg-trace "total time in git-bid: $(( $SECONDS - $start_time ))"
         return $status
@@ -330,19 +336,48 @@ zmodload zsh/pcre
                 cmd="git-$1" ; shift
             }
             xlg-cmd $cmd "$@"
+            return $status
             ;;
     }
     return $status
 }
 
 # ----------------------------------- utils ---------------------------------- #
-(( $+functions[xlg] )) || function xlg() { print -Pu2 "+> $@" }
-(( $+functions[xlg-trace] )) || function xlg-trace() { (( _GIT_BY_ID_VERBOSITY >= 4 )) && xlg "%F{black}$@%f" }
-(( $+functions[xlg-debug] )) || function xlg-debug() { (( _GIT_BY_ID_VERBOSITY >= 3 )) && xlg "%F{black}$@%f" }
-(( $+functions[xlg-info] )) || function xlg-info() { (( _GIT_BY_ID_VERBOSITY >= 2 )) && xlg "%F{black}$@%f" }
-(( $+functions[xlg-warn] )) || function xlg-warn() { (( _GIT_BY_ID_VERBOSITY >= 1 )) && xlg %"F{yellow}$@%f" }
-(( $+functions[xlg-error] )) || function xlg-error() { (( _GIT_BY_ID_VERBOSITY >= 0 )) && xlg %"F{red}%B$@%b%f" }
-(( $+functions[xlg-print] )) || function xlg-print() { (( _GIT_BY_ID_VERBOSITY >= -1 )) && xlg %"F{white}$@%f" }
+(( $+functions[xlg] )) || function xlg() { 
+    local _status=$status
+    print -Pu2 "+> $@"
+    return $_status
+}
+(( $+functions[xlg-trace] )) || function xlg-trace() {
+    local _status=$status
+    (( _GIT_BY_ID_VERBOSITY >= 4 )) && xlg "%F{black}$@%f"
+    return $_status
+}
+(( $+functions[xlg-debug] )) || function xlg-debug() {
+    local _status=$status
+    (( _GIT_BY_ID_VERBOSITY >= 3 )) && xlg "%F{black}$@%f"
+    return $_status
+}
+(( $+functions[xlg-info] )) || function xlg-info() {
+    local _status=$status
+    (( _GIT_BY_ID_VERBOSITY >= 2 )) && xlg "%F{black}$@%f"
+    return $_status
+}
+(( $+functions[xlg-warn] )) || function xlg-warn() {
+    local _status=$status
+    (( _GIT_BY_ID_VERBOSITY >= 1 )) && xlg %"F{yellow}$@%f"
+    return $_status
+}
+(( $+functions[xlg-error] )) || function xlg-error() {
+    local _status=$status
+    (( _GIT_BY_ID_VERBOSITY >= 0 )) && xlg %"F{red}%B$@%b%f"
+    return $_status
+}
+(( $+functions[xlg-print] )) || function xlg-print() {
+    local _status=$status
+    (( _GIT_BY_ID_VERBOSITY >= -1 )) && xlg %"F{white}$@%f"
+    return $_status
+}
 
 (( $+functions[xlg-fixup] )) || function xlg-fixup() {
     local \
