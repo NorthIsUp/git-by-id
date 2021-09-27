@@ -75,6 +75,9 @@ zmodload zsh/pcre
     # Replace "master" in commands with "main" for modern repos
     : "${GIT_BY_ID[COERSE_TO_MAIN]:=1}"
 
+    # Confirm pushes to main branch
+    : "${GIT_BY_ID[CONFIRM_PUSH_TO_MAIN]:=1}"
+
     # setup the theme
     local _theme=(
         'ob=%F{black}['
@@ -715,8 +718,12 @@ zmodload zsh/pcre
 
 # ------------------------------- git-bid-push ------------------------------- #
 (( $+functions[git-bid-push] )) || function git-bid-push() {
+    local _yes
+    zparseopts -D -E -- y=_yes -yes=_yes
     if [[
-        -t 1  # check if fd1 is open for read
+        ${GIT_BY_ID[CONFIRM_PUSH_TO_MAIN]} -eq 1
+        && ! $_yes  # skip if -y or --yes is passed
+        && -t 1     # check if fd1 is open for read
         && "$($cmd branch --show-current)" =~ '^(master|main)$'
     ]] {
         local should_push nl=$'\n'
