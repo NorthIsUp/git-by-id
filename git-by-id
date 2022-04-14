@@ -680,7 +680,9 @@ zmodload zsh/pcre
 (( $+functions[__git-bid-handle-accidental-branch] )) || function __git-bid-handle-accidental-branch() {
     # if status is 128 check to see if this was an "accidental branch creation"
     result=$(git-bid-number-expand --byid-execute --byid-branch $cmd "$@" 2>&1)
-    if (( ${GIT_BY_ID[AUTOCORRECT_BRANCH_ALREADY_EXISTS]} )) && [[ "$result" =~ "fatal: A branch named '(.*)' already exists." ]] {
+    print "$result"
+    print  autocorrect=${GIT_BY_ID[AUTOCORRECT_COMMIT_OOPS_BRANCH]}
+    if (( ${GIT_BY_ID[AUTOCORRECT_BRANCH_ALREADY_EXISTS]} )) && [[ "$result" =~ "fatal: A branch named '(.*)' already exists" ]] {
         local branch="${match[1]}"
         local sleep_time=$(printf '%.1f' $(($(git-bid-config help.autocorrect) / 10.0)) )
 
@@ -693,7 +695,7 @@ zmodload zsh/pcre
 
         xlg-cmd $cmd $1 "$branch"
         return $status
-    } elif (( ${GIT_BY_ID[AUTOCORRECT_COMMIT_OOPS_BRANCH]} )) && [[ "$result" =~ "fatal: '\[(.*)\] (.*)' is not a valid branch name." ]] {
+    } elif (( ${GIT_BY_ID[AUTOCORRECT_COMMIT_OOPS_BRANCH]} )) && [[ "$result" =~ "fatal: '\[(.*)\] (.*)' is not a valid branch name" ]] {
         local \
             message="[${match[1]}] ${match[2]}" \
             new_branch="${match[1]:gs/ /_/}/next-${match[2]:gs/ /-/}" \
