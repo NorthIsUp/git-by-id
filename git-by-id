@@ -283,12 +283,14 @@ zmodload zsh/pcre
         print "[$(date)] git-bid $@" >> $GIT_BY_ID[LOGFILE]
     }
 
+    local one_no_i
     if (
         (( $GIT_BY_ID[INTERACTIVE_I] )) \
-        && [[ "${1%i}" != "$1" ]] \
-        && (( $+functions[git-bid-fzf-${1%i}] )) \
+        && [[ "${one_no_i:=1%i}" != "$1" ]] \
+        && (( $+functions[git-bid-fzf-$one_no_i] )) \
     ) {
-        1="${1%i}"  # trim i off the end
+        xlg-fixup green git magenta "$1" -\> green git magenta "$one_no_i"
+        1="$one_no_i"  # trim i off the end
         extra_args+=(--byid-interactive)
     } elif [[ "$interactive" ]] {
         extra_args+=(--byid-interactive)
@@ -297,7 +299,7 @@ zmodload zsh/pcre
     # unwrap the cmd to see if it is an alias, then use that for 
     unwrapped_cmd="${GIT_BY_ID[ALIAS_$1]:-$1}"
     [[ "$1" != "$unwrapped_cmd" ]] && {
-        xlg-fixup green git magenta $1 -\> green git magenta $unwrapped_cmd
+        xlg-fixup green git magenta "$1" -\> green git magenta "$unwrapped_cmd"
         # don't do this, it will eat the alias!
         # set - $unwrapped_cmd ${@[2,-1]} 
     }
