@@ -78,6 +78,12 @@ zmodload zsh/pcre
     # Confirm pushes to main branch
     : "${GIT_BY_ID[CONFIRM_PUSH_TO_MAIN]:=1}"
 
+    # Alias <cmd>i for interactive mode where supported. e.g. addi -> add --interactive
+    : "${GIT_BY_ID[INTERACTIVE_I]:=1}"
+
+    # Defalt options to add to all fzf calls
+    : "${GIT_BY_ID[FZF_DEFAULT_OPTS]:=}"
+
     # setup the theme
     local _theme=(
         'ob=%F{black}['
@@ -166,7 +172,7 @@ zmodload zsh/pcre
         v+=flag_v -verbose+=flag_v \
         q+=flag_q -quiet+=flag_q \
         -trace=flag_level -debug=flag_level -info=flag_level \
-        -warn=flag_level -error=flag_level -silent=flag_level
+        -warn=flag_level -error=flag_level -silent=flag_level \
 
     # set up local verbosity variable for this invocation
     # verbosity is checked in the following order
@@ -266,11 +272,26 @@ zmodload zsh/pcre
         extra_args=() \
         cmd="$GIT_BY_ID[GIT_CMD]" \
         unwrapped_cmd \
-        branch
+        branch \
+        interactive
+    
+    zparseopts -D -E \
+        -interactive=interactive \
 
     (( $GIT_BY_ID[LOG_COMMANDS] )) && {
         # logs all git-bid commands to a log
         print "[$(date)] git-bid $@" >> $GIT_BY_ID[LOGFILE]
+    }
+
+    if (
+        (( $GIT_BY_ID[INTERACTIVE_I] )) \
+        && [[ "${1%i}" != "$1" ]] \
+        && (( $+functions[git-bid-fzf-${1%i}] )) \
+    ) {
+        1="${1%i}"  # trim i off the end
+        extra_args+=(--byid-interactive)
+    } elif [[ "$interactive" ]] {
+        extra_args+=(--byid-interactive)
     }
 
     # unwrap the cmd to see if it is an alias, then use that for 
@@ -581,6 +602,71 @@ zmodload zsh/pcre
     }
 }
 
+# -------------------------------- git-bid-fzf ------------------------------- #
+(( $+functions[git-bid-fzf-handle-porcelain] )) || function git-bid-fzf-handle-porcelain() {
+    local status_command untracked handle_cmd nothing_msg
+    zparseopts -D -E \
+        -bid-status-command:=status_command \
+        -bid-status-args:=status_args \
+        -bid-handle-files-command:=handle_cmd \
+        -bid-nothing-msg:=nothing_msg \
+        -bid-post-status=post_status \
+        u=untracked -untracked=untracked \
+
+    [[ "$status_command" ]] && status_command="$status_command[2]"
+    [[ "$handle_cmd" ]] && handle_cmd="$handle_cmd[2]"
+    [[ "$nothing_msg" ]] && nothing_msg="$nothing_msg[2]"
+    [[ "$status_args" ]] &&status_args=("$status_args[2]") || status_args=(-s $untracked)
+    # extract the path from porcelain output
+    local extract="sed 's/.* \\(.*\\)/\\1/'"
+    local preview="
+        file=\$(echo {} | $extract)
+        if (git status -s -- \$file | grep '^??') &>/dev/null; then  # diff with /dev/null for untracked files
+            git diff --color=always --no-index -- /dev/null \$file | sed '2 s/added:/untracked:/'
+        else
+            git diff --color=always -- \$file
+        fi
+        "
+    local opts=(
+        $GIT_BY_ID[FZF_DEFAULT_OPTS]
+        -0 -m --nth 2..,..
+        $GIT_BY_ID[FZF_ADD_OPTS]
+    )
+    local files=$(
+        git-bid ${status_command:-status} ${status_args} |
+        sed '/^$/d' |
+        FZF_DEFAULT_OPTS="$opts" fzf --ansi --preview="$preview" |
+        sh -c "$extract"
+    )
+
+    print "-s $untracked"
+    if [[ $files ]] {
+        xlg-cmd git $handle_cmd $files
+        local _exit_code=$status
+        [[ "$post_status" ]] && git status
+        return $_exit_code
+    } else {
+        [[ "$nothing_msg" ]] && print "$nothing_msg"
+        return 1
+    }
+}
+
+# ------------------------------ git-bid-fzf-add ----------------------------- #
+(( $+functions[git-bid-fzf-add] )) || function git-bid-fzf-add() {
+    git-bid-fzf-handle-porcelain \
+        --bid-handle-files-command add \
+        --bid-nothing-msg 'Nothing was added.' \
+        --bid-post-status \
+        "$@"
+}
+
+(( $+functions[git-bid-fzf-reset] )) || function git-bid-fzf-reset() {
+    git-bid-fzf-handle-porcelain \
+        --bid-handle-files-command reset \
+        --bid-nothing-msg 'Nothing was reset.' \
+        "$@"
+}
+
 # ------------------------------ git-bid-stash ------------------------------ #
 (( $+functions[git-bid-stash] )) || function git-bid-stash() {
     if [[ $1 == stash && $2 == pop ]] {
@@ -765,6 +851,7 @@ zmodload zsh/pcre
         -byid-execute=execute \
         -byid-relative=relative \
         -byid-remove=remove \
+        -byid-interactive=interactive \
 
 
     function prel() {
@@ -818,7 +905,9 @@ zmodload zsh/pcre
     done
 
     xlg-trace "expanded args to: ${(qqqq@)args}"
-    if [[ "$execute" ]] {
+    if [[ "$execute" && "$interactive" ]] && (( $+functions[git-bid-fzf-${@[2]}] )) {
+        xlg-cmd git-bid-fzf-${@[2]} "${(@)args}"
+    } elif [[ "$execute" ]] {
         # "${(@)var}" to not re-parse spaces
         xlg-cmd "${(@)args}"
         return $status
