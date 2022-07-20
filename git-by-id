@@ -641,7 +641,6 @@ zmodload zsh/pcre
         sh -c "$extract"
     )
 
-    print "-s $untracked"
     if [[ $files ]] {
         xlg-cmd git $handle_cmd $files
         local _exit_code=$status
