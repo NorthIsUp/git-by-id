@@ -623,20 +623,34 @@ zmodload zsh/pcre
 
 # -------------------------------- git-bid-fzf ------------------------------- #
 (( $+functions[git-bid-fzf-handle-porcelain] )) || function git-bid-fzf-handle-porcelain() {
-    local status_command untracked handle_cmd nothing_msg
+    local status_command untracked handle_cmd nothing_msg multi_max no_multi
     zparseopts -D -E \
-        -bid-status-command:=status_command \
-        -bid-status-args:=status_args \
-        -bid-handle-files-command:=handle_cmd \
+        -bid-list-command:=status_command \
+        -bid-list-args:=status_args \
+        -bid-handle-command:=handle_cmd \
         -bid-nothing-msg:=nothing_msg \
         -bid-post-status=post_status \
+        -bid-no-multi=no_multi \
         u=untracked -untracked=untracked \
 
-    [[ "$status_command" ]] && status_command="$status_command[2]"
-    [[ "$handle_cmd" ]] && handle_cmd="$handle_cmd[2]"
-    [[ "$nothing_msg" ]] && nothing_msg="$nothing_msg[2]"
-    [[ "$status_args" ]] &&status_args=("$status_args[2]") || status_args=(-s $untracked)
-    # extract the path from porcelain output
+    if [[ "$status_command" ]] {
+        status_command="$status_command[2]"
+    }
+    if [[ "$handle_cmd" ]] {
+        handle_cmd="$handle_cmd[2]"
+    }
+    if [[ "$nothing_msg" ]] {
+        nothing_msg="$nothing_msg[2]"
+    }
+    if [[ "$status_args" ]] {
+        status_args=("$status_args[2]")
+    } else {
+        status_args=(-s $untracked)
+    }
+    if [[ "$no_multi" ]] {
+        multi_max="=1"
+    }
+
     local extract="sed 's/.* \\(.*\\)/\\1/'"
     local preview="
         file=\$(echo {} | $extract)
@@ -674,7 +688,7 @@ zmodload zsh/pcre
 # ------------------------------ git-bid-fzf-add ----------------------------- #
 (( $+functions[git-bid-fzf-add] )) || function git-bid-fzf-add() {
     git-bid-fzf-handle-porcelain \
-        --bid-handle-files-command add \
+        --bid-handle-command add \
         --bid-nothing-msg 'Nothing was added.' \
         --bid-post-status \
         "$@"
@@ -682,8 +696,17 @@ zmodload zsh/pcre
 
 (( $+functions[git-bid-fzf-reset] )) || function git-bid-fzf-reset() {
     git-bid-fzf-handle-porcelain \
-        --bid-handle-files-command reset \
+        --bid-handle-command reset \
         --bid-nothing-msg 'Nothing was reset.' \
+        "$@"
+}
+
+(( $+functions[git-bid-fzf-branch] )) || function git-bid-fzf-branch() {
+    git-bid-fzf-handle-porcelain \
+        --bid-list-command branch \
+        --bid-handle-command checkout \
+        --bid-nothing-msg 'Nothing was checked out.' \
+        --bid-no-multi \
         "$@"
 }
 
