@@ -47,6 +47,9 @@ zmodload zsh/pcre
     # debug log of every git-by-id command
     : "${GIT_BY_ID[LOG_COMMANDS]:=0}"
 
+    # show numerical expansions when they happen
+    : "${GIT_BY_ID[LOG_EXPANSIONS]:=1}"
+
     # location to dump a history of unwrapped commands
     : "${GIT_BY_ID[LOGFILE]:=/usr/local/var/log/git-bid.log}"
 
@@ -86,17 +89,30 @@ zmodload zsh/pcre
 
     # setup the theme
     local _theme=(
-        'ob=%F{black}['
-        'cb=%F{black}]'
-        'id=%F{white}'
+        'default=%F{default}'
+
         'git-del=%F{red}-'
         'git-new=%F{green}%B+%b'
         'git-both=%F{magenta}%B~%b%F{red}'
         'git-mod=%F{yellow}+'
-        'arrow=%F{magenta}  --> %F{yellow}'
-        'ok=%F{green}'
-        'warn=%F{#FFA500}'
-        'error=%F{red}'
+
+        # characters
+        'ob=%F{black}['     # open bracket
+        'cb=%F{black}]'     # close bracket
+        'arrow_full=%F{magenta}  --> %F{yellow}' # the arrow
+
+        # colors by what they do
+        'id=%F{white}'      # ids/nubmers
+        'path=%F{white}'    # paths
+        'arrow=%F{magenta}' # arrow color
+        'ok=%F{green}'      # good
+        'warn=%F{#FFA500}'  # bad
+        'error=%F{red}'     # ugly
+        'replace_left=%F{magenta}'  # text that is being changed
+        'replace_right=%F{green}'   # what text is being changed to
+        'replace_white=%F{white}'   # what goes arround and inbetween
+
+        # colors by name
         'black=%F{black}'
         'red=%F{red}'
         'green=%F{green}'
@@ -105,14 +121,15 @@ zmodload zsh/pcre
         'magenta=%F{magenta}'
         'cyan=%F{cyan}'
         'white=%F{white}'
-        'default=%F{default}'
+        'bold=%B'
+        'unbold=%b'
         'reset=%f'
     )
 
     : "${GIT_BY_ID[THEME]:=${(j@:@)_theme}}"
 
     for segment in ${(s@:@)GIT_BY_ID[THEME]} ; {
-        if [[ "$segment" =~ "^([a-z-]+)=(.*)$" ]] {
+        if [[ "$segment" =~ "^([a-z-_]+)=(.*)$" ]] {
             if (( $GIT_BY_ID[NO_COLOR] )) {
                 segment=$segment
                 # ${segment:gs/%F{\*\}//}
@@ -221,7 +238,7 @@ zmodload zsh/pcre
 
 (( $+functions[git-bid-teardown] )) || function git-bid-teardown() {
     local \
-        arrow=$GIT_BY_ID[THEME_arrow] \
+        arrow=$GIT_BY_ID[THEME_arrow_full] \
         yellow=$GIT_BY_ID[THEME_yellow] \
         white=$GIT_BY_ID[THEME_white] \
         reset=$GIT_BY_ID[THEME_reset] \
@@ -289,7 +306,7 @@ zmodload zsh/pcre
         && [[ "$one_no_i" != "$1" ]] \
         && (( $+functions[git-bid-fzf-$one_no_i] )) \
     ) {
-        xlg-fixup green git magenta $1 -\> green git magenta "$one_no_i"
+        xlg-fixup green git replace_left $1 -\> green git replace_right "$one_no_i"
         1="$one_no_i"  # trim i off the end
         extra_args+=(--byid-interactive)
     } elif [[ "$interactive" ]] {
@@ -299,7 +316,7 @@ zmodload zsh/pcre
     # unwrap the cmd to see if it is an alias, then use that for 
     unwrapped_cmd="${GIT_BY_ID[ALIAS_$1]:-$1}"
     [[ "$1" != "$unwrapped_cmd" ]] && {
-        xlg-fixup green git magenta $1 -\> green git magenta $unwrapped_cmd
+        xlg-fixup green git replace_left $1 -\> green git replace_right $unwrapped_cmd
         # don't do this, it will eat the alias!
         # set - $unwrapped_cmd ${@[2,-1]} 
     }
@@ -590,15 +607,15 @@ zmodload zsh/pcre
     case "$1" {
         (t)
             if [[ "${2#t}" ]] {
-                xlg-fixup green gi red t magenta "${2#t}" -\> green git magenta "${2#t}" -- "${@:3}"
+                xlg-fixup green gi error t magenta "${2#t}" -\> green git magenta "${2#t}" -- "${@:3}"
                 git-bid "${2#t}" "${@:3}"
             } else {
-                xlg-fixup green gi red t -\> green git -- "${@:3}"
+                xlg-fixup green gi error t -\> green git -- "${@:3}"
                 git-bid "${@:3}"
             }
             ;;
         (git)
-            xlg-fixup green git red git magenta -\> green git -- "${@:2}"
+            xlg-fixup green git error git magenta -\> green git -- "${@:2}"
             git-bid "${@:2}"
             ;;
     }
@@ -634,11 +651,13 @@ zmodload zsh/pcre
         -0 -m --nth 2..,..
         $GIT_BY_ID[FZF_ADD_OPTS]
     )
-    local files=$(
-        git-bid ${status_command:-status} ${status_args} |
-        sed '/^$/d' |
-        FZF_DEFAULT_OPTS="$opts" fzf --ansi --preview="$preview" |
-        sh -c "$extract"
+    local files=(
+        $(
+            git-bid ${status_command:-status} ${status_args} |
+            sed '/^$/d' |
+            FZF_DEFAULT_OPTS="$opts" fzf --ansi --preview="$preview" |
+            sh -c "$extract"
+        )
     )
 
     if [[ $files ]] {
@@ -879,7 +898,11 @@ zmodload zsh/pcre
             return 1
         }
 
-        xlg-trace "[$1] -> $p"
+        if (( ${GIT_BY_ID[LOG_EXPANSIONS]} )) {
+            xlg-fixup replace_left $1 -\> replace_right $p
+        } else {
+            xlg-trace "[$1] -> $p"
+        }
         args+="$p"
     }
 
