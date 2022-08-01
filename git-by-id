@@ -624,7 +624,10 @@ zmodload zsh/pcre
 # -------------------------------- git-bid-fzf ------------------------------- #
 (( $+functions[git-bid-fzf-handle-porcelain] )) || function git-bid-fzf-handle-porcelain() {
     local status_command untracked handle_cmd nothing_msg multi_max no_multi
-    zparseopts -D -E \
+    local -A opts
+    zparseopts -A opts -D -E \
+        -bid-list-marker:=marker \
+        -bid-list-header:=header \
         -bid-list-command:=status_command \
         -bid-list-args:=status_args \
         -bid-handle-command:=handle_cmd \
@@ -633,23 +636,6 @@ zmodload zsh/pcre
         -bid-no-multi=no_multi \
         u=untracked -untracked=untracked \
 
-    if [[ "$status_command" ]] {
-        status_command="$status_command[2]"
-    }
-    if [[ "$handle_cmd" ]] {
-        handle_cmd="$handle_cmd[2]"
-    }
-    if [[ "$nothing_msg" ]] {
-        nothing_msg="$nothing_msg[2]"
-    }
-    if [[ "$status_args" ]] {
-        status_args=("$status_args[2]")
-    } else {
-        status_args=(-s $untracked)
-    }
-    if [[ "$no_multi" ]] {
-        multi_max="=1"
-    }
 
     local extract="sed 's/.* \\(.*\\)/\\1/'"
     local preview="
@@ -660,16 +646,34 @@ zmodload zsh/pcre
             git diff --color=always -- \$file
         fi
         "
-    local opts=(
+
+    local -a fzf_opts=(
         $GIT_BY_ID[FZF_DEFAULT_OPTS]
-        -0 -m --nth 2..,..
         $GIT_BY_ID[FZF_ADD_OPTS]
+        -0 -m --nth 2..,..
+        --ansi
+        --preview="$preview" 
     )
+
+    # required
+    handle_cmd="$opts[--bid-handle-command]"
+    nothing_msg="$opts[--bid-nothing-message]"
+
+    # status
+    status_command="${opts[--bid-list-command]:-status}"
+    [[ "$opts[--bid-list-args]" ]] && status_args=("$opts[--bid-list-args]") || status_args=(-s $untracked)
+
+    # fzf opts
+    [[ "$opts[--bid-list-marker]" ]] && fzf_opts+=( --marker "$opts[--bid-list-marker]" )
+    [[ "$opts[--bid-list-header]" ]] && fzf_opts+=( --header-first --header "$opts[--bid-list-header]" )
+    (( $+opts[--bid-no-multi] )) && fzf_opts+=( --multi-max=1 )
+
+
     local files=(
         $(
-            git-bid ${status_command:-status} ${status_args} |
+            git-bid ${status_command} ${status_args} |
             sed '/^$/d' |
-            FZF_DEFAULT_OPTS="$opts" fzf --ansi --preview="$preview" |
+            fzf $fzf_opts |
             sh -c "$extract"
         )
     )
@@ -688,6 +692,7 @@ zmodload zsh/pcre
 # ------------------------------ git-bid-fzf-add ----------------------------- #
 (( $+functions[git-bid-fzf-add] )) || function git-bid-fzf-add() {
     git-bid-fzf-handle-porcelain \
+        --bid-list-header "Changes not staged for commit" \
         --bid-handle-command add \
         --bid-nothing-msg 'Nothing was added.' \
         --bid-post-status \
