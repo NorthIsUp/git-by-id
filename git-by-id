@@ -284,13 +284,15 @@ zmodload zsh/pcre
 # ---------------------------------------------------------------------------- #
 (( $+functions[git-bid] )) || function git-bid() {
     (( ${__trace__:-0} )) && set -x || set +x
+    xlg-trace "git-bid ${(qqqq)@}"
 
     local \
         extra_args=() \
         cmd="$GIT_BY_ID[GIT_CMD]" \
         unwrapped_cmd \
         branch \
-        interactive
+        interactive \
+        one="$1" one_no_i="${1%i}" \
     
     zparseopts -D -E \
         -interactive=interactive \
@@ -300,25 +302,37 @@ zmodload zsh/pcre
         print "[$(date)] git-bid $@" >> $GIT_BY_ID[LOGFILE]
     }
 
-    local one_no_i="${1%i}"
-    if (
+    # unwrap the cmd to see if it is an alias, then use that for 
+    if (( $+GIT_BY_ID[ALIAS_$one] )) {
+        unwrapped_cmd="$GIT_BY_ID[ALIAS_$one]"
+        xlg-trace "unwrapped '$one' to '$unwrapped_cmd'"
+    } elif (( $+GIT_BY_ID[ALIAS_$one_no_i] )) {
+        unwrapped_cmd="$GIT_BY_ID[ALIAS_$one_no_i]"
+        xlg-trace "unwrapped '$one' to '$unwrapped_cmd'"
+    } elif (
         (( $GIT_BY_ID[INTERACTIVE_I] )) \
-        && [[ "$one_no_i" != "$1" ]] \
-        && (( $+functions[git-bid-fzf-$one_no_i] )) \
+        && [[ "$one_no_i" != "$one" ]] \
+        && (( $+functions[git-bid-fzf-$one_no_i] || $+functions[git-bid-fzf-$unwrapped_cmd] )) \
     ) {
-        xlg-fixup green git replace_left $1 -\> green git replace_right "$one_no_i"
-        1="$one_no_i"  # trim i off the end
-        extra_args+=(--byid-interactive)
-    } elif [[ "$interactive" ]] {
-        extra_args+=(--byid-interactive)
+        xlg-fixup green git replace_left $one -\> green git replace_right "$one_no_i"
+        one="$one_no_i"  # trim i off the end
+        unwrapped_cmd="$one_no_i"
+        (( ! $extra_args[(Ie)--byid-interactive] )) && extra_args+=(--byid-interactive)
+        xlg-trace "interactive unwrapped '$one' to '$unwrapped_cmd'"
+    } else {
+        xlg-trace "'$one' is not wrapped"
+        unwrapped_cmd="$one"
     }
 
-    # unwrap the cmd to see if it is an alias, then use that for 
-    unwrapped_cmd="${GIT_BY_ID[ALIAS_$1]:-$1}"
-    [[ "$1" != "$unwrapped_cmd" ]] && {
-        xlg-fixup green git replace_left $1 -\> green git replace_right $unwrapped_cmd
+    if [[ "$one" != "$unwrapped_cmd" ]] && {
+        xlg-fixup green git replace_left $one -\> green git replace_right $unwrapped_cmd
         # don't do this, it will eat the alias!
         # set - $unwrapped_cmd ${@[2,-1]} 
+    }
+
+    if [[ "$interactive" ]] {
+        # only add if it wasn't already there
+        (( ! $extra_args[(Ie)--byid-interactive] )) && extra_args+=(--byid-interactive)
     }
 
     case "$unwrapped_cmd" {
@@ -340,7 +354,7 @@ zmodload zsh/pcre
             extra_args+=--verbose
             ;&
         (commit | blame | add | log | rebase | merge | difftool)
-            git-bid-number-expand --byid-execute $cmd $1 $extra_args "${@:2}"
+            git-bid-number-expand --byid-execute $cmd $one $extra_args "${@:2}"
             ;;
         (rm)
             extra_args+=--byid-remove
@@ -352,7 +366,7 @@ zmodload zsh/pcre
             git-bid-checkout "$@"
             ;;
         (branch)
-            git-bid-number-branch "${@:2}"
+            git-bid-number-branch $extra_args "${@:2}"
             ;;
         (next)
             # git next BRANCH_BASE EXTRA_PHRASE
@@ -374,9 +388,9 @@ zmodload zsh/pcre
             git-bid-teardown --no-setup
             ;;
         (*)
-            (( $+commands[git-$1] || $+functions[git-$1] )) && {
+            (( $+commands[git-$one] || $+functions[git-$one] )) && {
                 # run custom git-* commands directly
-                cmd="git-$1" ; shift
+                cmd="git-$one" ; shift
             }
             xlg-cmd $cmd "$@"
             return $status
@@ -389,6 +403,15 @@ zmodload zsh/pcre
 (( $+functions[xlg] )) || function xlg() { 
     local _status=$status
     print -Pu2 "+> $@"
+    return $_status
+}
+(( $+functions[xlg-inspect] )) || function xlg-inspect() {
+    local _status=$status
+    (( _GIT_BY_ID_VERBOSITY >= 4 )) && xlg "%F{black}inspect+> $@%f"
+    IFS="\n" && for line in $(cat -) ; do
+        xlg "%F{black}inspect>> $line%f"
+        print -- "$line"
+    done
     return $_status
 }
 (( $+functions[xlg-trace] )) || function xlg-trace() {
@@ -622,93 +645,80 @@ zmodload zsh/pcre
 }
 
 # -------------------------------- git-bid-fzf ------------------------------- #
-(( $+functions[git-bid-fzf-handle-porcelain] )) || function git-bid-fzf-handle-porcelain() {
-    local status_command untracked handle_cmd nothing_msg multi_max no_multi
-    local -A opts
-    zparseopts -A opts -D -E \
-        -bid-list-marker:=marker \
-        -bid-list-header:=header \
-        -bid-list-command:=status_command \
-        -bid-list-args:=status_args \
-        -bid-handle-command:=handle_cmd \
-        -bid-nothing-msg:=nothing_msg \
-        -bid-post-status=post_status \
-        -bid-no-multi=no_multi \
-        u=untracked -untracked=untracked \
-
+(( $+functions[git-bid-fzf-handle-status-files] )) || function git-bid-fzf-handle-status-files() {
+    zparseopts -D -E \
+        -fzf-git-cmd:=git_cmd \
+        -fzf-success-msg:=success_msg \
+        -fzf-empty-msg:=empty_msg \
+        -fzf-git-status=git_status \
+        -fzf-extract=extracter \
+        -u=untracked -untracked=untracked \
 
     local extract="sed 's/.* \\(.*\\)/\\1/'"
-    local preview="
-        file=\$(echo {} | $extract)
-        if (git status -s -- \$file | grep '^??') &>/dev/null; then  # diff with /dev/null for untracked files
-            git diff --color=always --no-index -- /dev/null \$file | sed '2 s/added:/untracked:/'
-        else
-            git diff --color=always -- \$file
-        fi
-        "
-
-    local -a fzf_opts=(
+    local fzf_opts=(
         $GIT_BY_ID[FZF_DEFAULT_OPTS]
         $GIT_BY_ID[FZF_ADD_OPTS]
         -0 -m --nth 2..,..
         --ansi
-        --preview="$preview" 
+        --preview "
+            file=\$(echo {} | ${extracter[2]})
+            if (git status -s -- \$file | grep '^??') &>/dev/null; then  # diff with /dev/null for untracked files
+                git diff --color=always --no-index -- /dev/null \$file | sed '2 s/added:/untracked:/'
+            else
+                git diff --color=always -- \$file
+            fi
+        "
     )
 
-    # required
-    handle_cmd="$opts[--bid-handle-command]"
-    nothing_msg="$opts[--bid-nothing-message]"
-
-    # status
-    status_command="${opts[--bid-list-command]:-status}"
-    [[ "$opts[--bid-list-args]" ]] && status_args=("$opts[--bid-list-args]") || status_args=(-s $untracked)
-
-    # fzf opts
-    [[ "$opts[--bid-list-marker]" ]] && fzf_opts+=( --marker "$opts[--bid-list-marker]" )
-    [[ "$opts[--bid-list-header]" ]] && fzf_opts+=( --header-first --header "$opts[--bid-list-header]" )
-    (( $+opts[--bid-no-multi] )) && fzf_opts+=( --multi-max=1 )
+    # get list of files for fzf
+    local chosen=( $(
+        git-bid status --short $untracked |
+        sed '/^$/d' |
+        fzf $fzf_opts |
+        sh -c "${extracter[2]}"
+    ) )
 
 
-    local files=(
-        $(
-            git-bid ${status_command} ${status_args} |
-            sed '/^$/d' |
-            fzf $fzf_opts |
-            sh -c "$extract"
-        )
-    )
-
-    if [[ $files ]] {
-        xlg-cmd git $handle_cmd $files
+    if (( ${#chosen} > 0 )) {
+        xlg-cmd git ${git_cmd[2]} $chosen
         local _exit_code=$status
-        [[ "$post_status" ]] && git status
+        [[ "$git_status" ]] && git status
         return $_exit_code
     } else {
-        [[ "$nothing_msg" ]] && print "$nothing_msg"
+        print "${empty_msg[2]}"
         return 1
     }
 }
 
 # ------------------------------ git-bid-fzf-add ----------------------------- #
 (( $+functions[git-bid-fzf-add] )) || function git-bid-fzf-add() {
-    git-bid-fzf-handle-porcelain \
-        --bid-list-header "Changes not staged for commit" \
-        --bid-handle-command add \
-        --bid-nothing-msg 'Nothing was added.' \
-        --bid-post-status \
+    git-bid-fzf-handle-status-files \
+        --fzf-git-cmd add \
+        --fzf-extracter "sed 's/.* \\(.*\\)/\\1/'" \
+        --fzf-empty-msg "Nothing added." \
         "$@"
 }
 
 (( $+functions[git-bid-fzf-reset] )) || function git-bid-fzf-reset() {
-    git-bid-fzf-handle-porcelain \
-        --bid-handle-command reset \
-        --bid-nothing-msg 'Nothing was reset.' \
+        git-bid-fzf-handle-status-files \
+        --fzf-git-cmd reset \
+        --fzf-extracter "sed 's/.* \\(.*\\)/\\1/'" \
+        --fzf-empty-msg "Nothing was reset." \
+        "$@"
+}
+
+(( $+functions[git-bid-fzf-checkout] )) || function git-bid-fzf-checkout() {
+    git-bid-fzf-handle-status-files \
+        --fzf-git-cmd checkout \
+        --fzf-extracter "sed 's/.* \\(.*\\)/\\1/'" \
+        --fzf-empty-msg "Nothing was checked out." \
         "$@"
 }
 
 (( $+functions[git-bid-fzf-branch] )) || function git-bid-fzf-branch() {
     git-bid-fzf-handle-porcelain \
         --bid-list-command branch \
+        --bid-list-args '-vv --all' \
         --bid-handle-command checkout \
         --bid-nothing-msg 'Nothing was checked out.' \
         --bid-no-multi \
