@@ -356,8 +356,8 @@ zmodload zsh/pcre
         (commit | blame | add | log | rebase | merge | difftool)
             git-bid-number-expand --byid-execute $cmd $one $extra_args "${@:2}"
             ;;
-        (rm)
-            extra_args+=--byid-remove
+        (rm | reset )
+            extra_args+=--byid-skip-p-exits-check
             ;&
         (diff | rm | reset)
             git-bid-number-expand --byid-execute --byid-relative $cmd $extra_args "$@"
@@ -470,8 +470,10 @@ zmodload zsh/pcre
     msg=${${msg##[[:blank:]]##}%%[[:blank:]]##}
 
     # add brackets if missing
-    if [[ ! "$msg" =~ '.*\[.*\].*' ]] {
+    if [[ ! "$msg" =~ '^\[.*\]$' ]] {
         msg="${white}[${msg}${white}]"
+    } else {
+        print 'has brackets'
     }
 
     # add any extra
@@ -898,7 +900,7 @@ zmodload zsh/pcre
         branch \
         execute \
         relative \
-        remove \
+        skip_p_check \
         args=() \
         cmd \
         i \
@@ -908,7 +910,8 @@ zmodload zsh/pcre
         -byid-branch=branch \
         -byid-execute=execute \
         -byid-relative=relative \
-        -byid-remove=remove \
+        -byid-skip-p-exits-check=skip_p_check \
+        -byid-p-exists-in-index-ok=index_p_check \
         -byid-interactive=interactive \
 
 
@@ -928,9 +931,8 @@ zmodload zsh/pcre
         
         local p="${GIT_IDS[$1]}"
         [[ $relative ]] && p=${p#$PWD/}
-
-        if [[ "$remove" || "$branch" ]] {
-            # just keep going, the branch/file doesn't need to exist
+        if (( $+GIT_IDS_UNMERGED[$1] )) || [[ "$skip_p_check" || "$branch" ]] {
+            # just keep going, the branch/file doesn't need to exist or is known to be unmerged
         } elif [[ "$p" && ! -e "$p" ]] {
             xlg-error "'$p' doesn't seem to exist"
             return 1
