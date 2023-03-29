@@ -9,6 +9,8 @@ zmodload zsh/pcre
 
 # ------------------------------- git-bid-setup ------------------------------ #
 (( $+GIT_BY_ID[__SETUP__] )) || {
+    typeset +r GIT_BY_ID
+
     # set up completions
     (( $+functions[compdef] )) && compdef git-bid=git git-by-id=git
 
@@ -100,6 +102,7 @@ zmodload zsh/pcre
         'ob=%F{black}['     # open bracket
         'cb=%F{black}]'     # close bracket
         'arrow_full=%F{magenta}  --> %F{yellow}' # the arrow
+        'arrow_phat=%F{magenta}  ==> %F{yellow}' # the arrow
 
         # colors by what they do
         'id=%F{white}'      # ids/nubmers
@@ -154,7 +157,7 @@ zmodload zsh/pcre
     function find-alias() { (( $+GIT_BY_ID[ALIAS_$1] )) && find-alias "$GIT_BY_ID[ALIAS_$1]" || echo $1 }
     for a in ${(f)_aliases} ; {
         # looks for simple aliases and alias functions with a well formed `: git <cmd>` as the first statement
-        [[ $a =~ '^alias.(\w+)\s+(\w+)' || $a =~ '^alias.(\w+)\s+!.*:\s*git\s+(\w+)' ]] \
+        [[ $a =~ '^alias.(\w+)\s+([-\s\w]+)' || $a =~ '^alias.(\w+)\s+!.*:\s*git\s+([-\s\w]+)' ]] \
             && GIT_BY_ID[ALIAS_${match[1]}]="${match[2]}"
     }
     for key in ${(k)GIT_BY_ID[(I)ALIAS_*]} ; {
@@ -165,19 +168,123 @@ zmodload zsh/pcre
     : "${GIT_BY_ID[__SETUP__]:=${EPOCHREALTIME:-1}}"
 
     # freeze settings
-    readonly -Ag GIT_BY_ID
+    typeset -Agr GIT_BY_ID
 
     # proactively source the file before continuing
     # this loads all the functions and enables faster loading of the commands
     # in subsequent runs this will speed up execution
     [[ -e "$functions_source[git-by-id]" ]] && builtin source $functions_source[git-by-id]
+    xlg-trace "git-by-id: setup complete at ${GIT_BY_ID[__SETUP__]}"
 }
 
 # -------------------------------- entrypoints ------------------------------- #
 (( $+functions[git-bid-entrypoint] )) && {
     # this short-cuts loading the rest of the file when already sourced
+    xlg-trace "git-by-id: entrypoint already sourced, using shortcut"
+    xlg-trace "setup at: ${GIT_BY_ID[__SETUP__]}"
+
     (( ${__trace__:-0} )) && set -x || set +x
-    git-bid-entrypoint "$@"
+
+    # ------------------------- handle the refunc command ------------------------ #
+    if (( ${@[(Ie)refunc]} )) {
+        set -- ${@:#refunc}
+        [[ "$@" =~ --trace ]] && local _GIT_BY_ID_VERBOSITY=4
+
+        local start_setup="${GIT_BY_ID[__SETUP__]}"
+        local start_time=$SECONDS
+
+        # git-bid-teardown "$@"
+
+        local \
+            arrow=$GIT_BY_ID[THEME_arrow_full] \
+            pharrow=$GIT_BY_ID[THEME_arrow_phat] \
+            yellow=$GIT_BY_ID[THEME_yellow] \
+            white=$GIT_BY_ID[THEME_white] \
+            reset=$GIT_BY_ID[THEME_reset] \
+            sources=("${functions_source[git-by-id]}") \
+            bid_funcs=(
+                ${(k)functions[(I)git-by-id*]}
+                ${(k)functions[(I)git-bid*]}
+                ${(k)functions[(I)__git-bid*]}
+                xlg-fixup
+            )
+
+        # ---------------------------------- header ---------------------------------- #
+        xlg "%B${GIT_BY_ID[THEME_yellow]}====> scrubbing git-by-id environment%b${GIT_BY_ID[THEME_reset]}"
+        xlg-trace "$arrow args: $@"
+        xlg-trace "$arrow shell pid: $$"
+        xlg "$pharrow cleaning config$reset"
+
+        (( $#sources )) && {
+            for line in ${(f)"$(shasum $sources)"} ; {
+                [[ $line =~ '^([a-z0-9]+) (.*)$' ]] \
+                    && xlg "$arrow ${match[1][1,8]} $white${(D)match[2]}$reset" \
+                    || xlg "$line"
+            }
+        }
+
+        # -------------------------------- clean vars -------------------------------- #
+        # the variable unsetting must be done at the root level of the file
+        typeset +r GIT_BY_ID    # make it readable
+        local \
+            key= \
+            unset_vars=(
+                GIT_IDS_COUNT
+                GIT_IDS_LAST_RUN
+                GIT_IDS
+                GIT_BY_ID
+                GIT_IDS_STAGED
+                GIT_IDS_UNMERGED
+                GIT_IDS_UNSTAGED
+                GIT_IDS_UNTRACKED
+                GIT_IDS_BRANCHES
+            )
+
+        (( $#GIT_BY_ID )) && {
+            for key in ${(k)GIT_BY_ID[(I)ALIAS_*]} ; {
+                [[ "$key" != ALIAS_* ]] && continue
+                unset_vars+="GIT_BY_ID[$key]"
+            }
+        }
+
+        # print the vars to scrub
+        xlg "$arrow cleaning variables$reset" "\n+>       $white- $yellow"${(on)^unset_vars}"$reset"
+        
+        # unset the vars
+        unset $unset_vars
+        unset -m "${GIT_BY_ID[PREFIX_VAR]}[0-9]##"
+
+        # ------------------------------ clean functions ----------------------------- #
+        xlg "$arrow unloading functions$white:" "\n+>       $white- $yellow"${(on)^bid_funcs}"$reset"
+        unfunction $bid_funcs
+
+        # -------------------------- autoload for next time -------------------------- #
+        xlg "$arrow autoloading git-by-id$reset"
+        autoload +X git-by-id
+
+        [[ "$@" =~ --no-setup ]] && {
+            xlg "$arrow skipping setup"
+            xlg-trace "after new typeset __STEUP__: ${GIT_BY_ID[__SETUP__]}"
+            return
+        }
+
+        local end_setup="${GIT_BY_ID[__SETUP__]:-0}"
+
+        if [[ "$start_setup" == "$end_setup" ]] {
+            # check to see if the setup time was reset
+            xlg-trace "teardown failed, GIT_BY_ID not reset"
+            xlg-trace "$start_setup should not equal $end_setup"
+            xlg-trace "shell pid: $$"
+            false
+        } else {
+            xlg-trace "teardown complete"
+        }
+    } else {
+        git-bid-entrypoint "$@"
+    }
+
+    xlg-trace "total time in git-bid: $(( $SECONDS - $start_time ))"
+    xlg-trace "status: $status"
     return "$status"
 }
 
@@ -209,75 +316,77 @@ zmodload zsh/pcre
     xlg-debug "set verbosity to $_GIT_BY_ID_VERBOSITY"
 
     local start_time=$SECONDS
-    if [[ "$1" == 'refunc' ]] {
-        xlg-cmd git-bid-teardown
-        xlg-trace "total time in git-bid: $(( $SECONDS - $start_time ))"
-        return $status
-    } else {
-        # run the function like normal!
-        export LINES
-        # disable color for now
-        if (( GIT_BY_ID[EXTRA_COLOR] && $+functions[git-bid-color] )) {
-            # run output through a fancy colorizer (but its kinda broken)
-            if [[ "$1" == diff ]] {
-                git-bid "$@" 2> >(git-bid-color stderr)
-                return $status
-            } elif (( $+functions[git-bid-color] )) {
-                git-bid "$@" > >(git-bid-color stdout) 2> >(git-bid-color stderr)
-                return $status
-            }
-        } else {
-            # run git-bid
-            git-bid "$@"
+
+    # run the function like normal!
+    export LINES
+    # disable color for now
+    if (( GIT_BY_ID[EXTRA_COLOR] && $+functions[git-bid-color] )) {
+        # run output through a fancy colorizer (but its kinda broken)
+        if [[ "$1" == diff ]] {
+            git-bid "$@" 2> >(git-bid-color stderr)
+            return $status
+        } elif (( $+functions[git-bid-color] )) {
+            git-bid "$@" > >(git-bid-color stdout) 2> >(git-bid-color stderr)
             return $status
         }
-        xlg-trace "total time in git-bid: $(( $SECONDS - $start_time ))"
+    } else {
+        # run git-bid
+        git-bid "$@"
         return $status
     }
+    xlg-trace "total time in git-bid: $(( $SECONDS - $start_time ))"
+    return $status
 }
 
-(( $+functions[git-bid-teardown] )) || function git-bid-teardown() {
-    local \
-        arrow=$GIT_BY_ID[THEME_arrow_full] \
-        yellow=$GIT_BY_ID[THEME_yellow] \
-        white=$GIT_BY_ID[THEME_white] \
-        reset=$GIT_BY_ID[THEME_reset] \
-        sources=("${functions_source[git-by-id]}") \
-        bid_funcs=(
-            ${(k)functions[(I)git-by-id*]}
-            ${(k)functions[(I)git-bid*]}
-            ${(k)functions[(I)__git-bid*]}
-            xlg-fixup
-        )
+# (( $+functions[git-bid-teardown] )) || function git-bid-teardown() {
+#     local \
+#         arrow=$GIT_BY_ID[THEME_arrow_full] \
+#         arrow_phat=$GIT_BY_ID[THEME_arrow_phat] \
+#         yellow=$GIT_BY_ID[THEME_yellow] \
+#         white=$GIT_BY_ID[THEME_white] \
+#         reset=$GIT_BY_ID[THEME_reset] \
+#         sources=("${functions_source[git-by-id]}") \
+#         bid_funcs=(
+#             ${(k)functions[(I)git-by-id*]}
+#             ${(k)functions[(I)git-bid*]}
+#             ${(k)functions[(I)__git-bid*]}
+#             xlg-fixup
+#         )
 
-    xlg "%B${GIT_BY_ID[THEME_yellow]}====> scrubbing git-by-id environment%b${GIT_BY_ID[THEME_reset]}"
+#     xlg "%B${GIT_BY_ID[THEME_yellow]}====> scrubbing git-by-id environment%b${GIT_BY_ID[THEME_reset]}"
+#     xlg-trace "$arrow args: $@"
+#     xlg-trace "shell pid: $$"
 
-    xlg "$arrow cleaning config$reset"
-    typeset +r GIT_BY_ID
-    (( $+GIT_BY_ID[__SETUP__] )) && GIT_BY_ID[__SETUP__]=
+#     xlg "$arrow_phat cleaning config$reset"
+#     typeset +r GIT_BY_ID
+#     xlg-trace "after new typeset __STEUP__: ${GIT_BY_ID[__SETUP__]}"
 
-    xlg "$arrow cleaning variables$reset"
-    xlg-cmd git-bid-clean-vars
+#     git-bid-clean-vars
 
-    xlg "$arrow unloading functions$white:" "\n+>       $white- $yellow"${^bid_funcs}"$reset"
-    xlg-cmd unfunction $bid_funcs
+#     xlg "$arrow unloading functions$white:" "\n+>       $white- $yellow"${(on)^bid_funcs}"$reset"
+#     xlg-cmd unfunction $bid_funcs
 
-    xlg "$arrow autoloading git-by-id$reset"
-    xlg-cmd autoload git-by-id
+#     xlg "$arrow autoloading git-by-id$reset"
+#     xlg-cmd autoload git-by-id
 
-    [[ "$@" =~ '--no-setup' ]] && return
+#     [[ "$@" =~ --no-setup ]] && {
+#         xlg "$arrow skipping setup"
+#         xlg-trace "after new typeset __STEUP__: ${GIT_BY_ID[__SETUP__]}"
+#         return
+#     }
     
-    xlg "$arrow force loading git-by-id$reset"
-    for line in ${(f)"$(shasum $sources)"} ; {
-        if [[ $line =~ '^([a-z0-9]+) (.*)$' ]] {
-            xlg "$arrow ${match[1][1,7]} $white${match[2]}$reset"
-        } else {
-            xlg  "$line"
-        }
-    }
+#     xlg "$arrow force loading git-by-id$reset"
 
-    xlg-cmd builtin source "$sources"
-}
+#     [[ "$sources" ]] || return  # no sources to load
+#     for line in ${(f)"$(shasum $sources)"} ; {
+#         if [[ $line =~ '^([a-z0-9]+) (.*)$' ]] {
+#             xlg "$arrow ${match[1][1,7]} $white${match[2]}$reset"
+#         } else {
+#             xlg  "$line"
+#         }
+#     }
+#     xlg-cmd builtin source "$sources"
+# }
 
 # ---------------------------------------------------------------------------- #
 #                                   Git By Id                                  #
@@ -381,12 +490,13 @@ zmodload zsh/pcre
         (push)
             git-bid-push "$@"
             ;;
-        (refunc|bid-refunc)
-            git-bid-teardown
-            ;;
-        (unfunc|bid-unfunc)
-            git-bid-teardown --no-setup
-            ;;
+        # (refunc|bid-refunc)
+        #     # usually this is caught above
+        #     git-bid-teardown "$@"
+        #     ;;
+        # (unfunc|bid-unfunc)
+        #     git-bid-teardown --no-setup
+        #     ;;
         (*)
             (( $+commands[git-$one] || $+functions[git-$one] )) && {
                 # run custom git-* commands directly
@@ -400,7 +510,7 @@ zmodload zsh/pcre
 }
 
 # ----------------------------------- utils ---------------------------------- #
-(( $+functions[xlg] )) || function xlg() { 
+(( $+functions[xlg] )) || function xlg() {
     local _status=$status
     print -Pu2 "+> $@"
     return $_status
@@ -485,7 +595,7 @@ zmodload zsh/pcre
     # helper to log a command to stderr
     local -i verbosity=0 v1=0 v2=0
 
-    if [[ "$1" =~ '-v|--verbose' ]] {
+    if [[ "$1" =~ '^-v|--verbose$' ]] {
         verbosity=2
         shift
     }
@@ -985,6 +1095,7 @@ zmodload zsh/pcre
 # ------------------------------- number branch ------------------------------ #
 (( $+functions[git-bid-number-branch] )) || function git-bid-number-branch() {
     git-bid-clean-vars
+    GIT_IDS_COUNT=0
 
     # Fall back to normal git branch, if any unknown args given
     if (( $(${GIT_BY_ID[GIT]} branch | wc -l) > 300 )) || [[ -n "$@" && "$@" != "-a" ]]; then
