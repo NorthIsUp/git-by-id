@@ -182,6 +182,7 @@ zmodload zsh/pcre
     # this short-cuts loading the rest of the file when already sourced
     xlg-trace "git-by-id: entrypoint already sourced, using shortcut"
     xlg-trace "setup at: ${GIT_BY_ID[__SETUP__]}"
+    local start_time=$SECONDS
 
     (( ${__trace__:-0} )) && set -x || set +x
 
@@ -191,7 +192,6 @@ zmodload zsh/pcre
         [[ "$@" =~ --trace ]] && local _GIT_BY_ID_VERBOSITY=4
 
         local start_setup="${GIT_BY_ID[__SETUP__]}"
-        local start_time=$SECONDS
 
         # git-bid-teardown "$@"
 
