@@ -8,29 +8,27 @@ zmodload zsh/pcre
 # ---------------------------------------------------------------------------- #
 
 # ------------------------------- git-bid-setup ------------------------------ #
-(( $+GIT_BY_ID[__SETUP__] )) || {
-    typeset +r GIT_BY_ID
-
+(( $+GIT_BY_ID__SETUP_COMPLETE )) || {
+    : "${GIT_BY_ID__SETUP_START:=${EPOCHREALTIME:-1}}"
+    
     # set up completions
     (( $+functions[compdef] )) && compdef git-bid=git git-by-id=git
 
-    # Config map, set as global assoiative array
-    typeset -Ag GIT_BY_ID
-
-    (( !$+GIT_BY_ID[GIT_CMD] )) && {
+    (( !$+GIT_BY_ID__GIT_CMD )) && {
         # the underlying git command name, "git" by default
-        # the git command will be found via $commands[${GIT_BY_ID[GIT]}]
-        : "${GIT_BY_ID[GIT]:=git}"
+        # the git command will be found via $commands[${GIT_BY_ID__GIT}]
+        : "${GIT_BY_ID__GIT:=git}"
 
         # require git binary actually exists
-        if (( !$+commands[${GIT_BY_ID[GIT]}] )) {
-            print -Pu2 "%F{red}can not find git command '${GIT_BY_ID[GIT]}'%f"
+        if (( !$+commands[${GIT_BY_ID__GIT}] )) {
+            print -Pu2 "%F{red}can not find git command '${GIT_BY_ID__GIT}'%f"
             return 1
         }
     }
 
     # full path to the git command, this path is what is actually used byt git-by-id
-    : "${GIT_BY_ID[GIT_CMD]:=$commands[$GIT_BY_ID[GIT]]}"
+    : "${GIT_BY_ID__GIT_CMD:=$commands[$GIT_BY_ID__GIT]}"
+    print -u2 ${GIT_BY_ID__GIT_CMD}
 
     # log lots of output, options are
     #   4 - trace
@@ -40,54 +38,54 @@ zmodload zsh/pcre
     #   0 - error
     #   -1 print (used for full silent)
     # per command verbosity levels via GIT_BY_ID[VERBOSITY__git-<COMMAND>]
-    : "${GIT_BY_ID[VERBOSITY]:=2}"
+    : "${GIT_BY_ID__VERBOSITY:=2}"
 
     # enable color
-    : "${GIT_BY_ID[NO_COLOR]:=0}"
-    : "${GIT_BY_ID[EXTRA_COLOR]:=0}"
+    : "${GIT_BY_ID__NO_COLOR:=0}"
+    : "${GIT_BY_ID__EXTRA_COLOR:=0}"
 
     # debug log of every git-by-id command
-    : "${GIT_BY_ID[LOG_COMMANDS]:=0}"
+    : "${GIT_BY_ID__LOG_COMMANDS:=0}"
 
     # show numerical expansions when they happen
-    : "${GIT_BY_ID[LOG_EXPANSIONS]:=1}"
+    : "${GIT_BY_ID__LOG_EXPANSIONS:=1}"
 
     # location to dump a history of unwrapped commands
-    : "${GIT_BY_ID[LOGFILE]:=/usr/local/var/log/git-bid.log}"
+    : "${GIT_BY_ID__LOGFILE:=/usr/local/var/log/git-bid.log}"
 
     # should id variables (`g23`, etc.) be set when creating the ids
-    : "${GIT_BY_ID[SET_ID_VARS]:=1}"
+    : "${GIT_BY_ID__SET_ID_VARS:=1}"
     
     # the git id variable prefix, defaults to "g"
-    : "${GIT_BY_ID[PREFIX_VAR]:=g}"
+    : "${GIT_BY_ID__PREFIX_VAR:=g}"
 
     # autocorrect when you combine creating a new branch with a commit message
     #    git checkout -b '[some feature] some message'
     # becomes
     #    git checkout -b some_feature/next
     #    git commit -m '[some feature] some message'
-    : "${GIT_BY_ID[AUTOCORRECT_COMMIT_OOPS_BRANCH]:=1}"
+    : "${GIT_BY_ID__AUTOCORRECT_COMMIT_OOPS_BRANCH:=1}"
 
     # Checkout a branch if it already exists.
-    : "${GIT_BY_ID[AUTOCORRECT_BRANCH_ALREADY_EXISTS]:=1}"
+    : "${GIT_BY_ID__AUTOCORRECT_BRANCH_ALREADY_EXISTS:=1}"
 
     # Enable autoincrementing branch names
     #    git checkout -b some-branch/next
     # becomes
     #    git checkout -b some-branch/1
-    : "${GIT_BY_ID[BRANCH_NEXT_TO_NUMBER]:=1}"
+    : "${GIT_BY_ID__BRANCH_NEXT_TO_NUMBER:=1}"
 
     # Replace "master" in commands with "main" for modern repos
-    : "${GIT_BY_ID[COERSE_TO_MAIN]:=1}"
+    : "${GIT_BY_ID__COERSE_TO_MAIN:=1}"
 
     # Confirm pushes to main branch
-    : "${GIT_BY_ID[CONFIRM_PUSH_TO_MAIN]:=1}"
+    : "${GIT_BY_ID__CONFIRM_PUSH_TO_MAIN:=1}"
 
     # Alias <cmd>i for interactive mode where supported. e.g. addi -> add --interactive
-    : "${GIT_BY_ID[INTERACTIVE_I]:=1}"
+    : "${GIT_BY_ID__INTERACTIVE_I:=1}"
 
     # Defalt options to add to all fzf calls
-    : "${GIT_BY_ID[FZF_DEFAULT_OPTS]:=}"
+    : "${GIT_BY_ID__FZF_DEFAULT_OPTS:=}"
 
     # setup the theme
     local _theme=(
@@ -129,18 +127,19 @@ zmodload zsh/pcre
         'reset=%f'
     )
 
-    : "${GIT_BY_ID[THEME]:=${(j@:@)_theme}}"
+    : "${GIT_BY_ID__THEME:=${(j@:@)_theme}}"
 
-    for segment in ${(s@:@)GIT_BY_ID[THEME]} ; {
+    for segment in ${(s@:@)GIT_BY_ID__THEME} ; {
         if [[ "$segment" =~ "^([a-z-_]+)=(.*)$" ]] {
-            if (( $GIT_BY_ID[NO_COLOR] )) {
+            local key=${match[1]/-/_}
+            if (( $GIT_BY_ID__NO_COLOR )) {
                 segment=$segment
                 # ${segment:gs/%F{\*\}//}
                 # TODO: support NO_COLOR
                 # need to strip %F\{.*\},%f,%B,%b
-                GIT_BY_ID[THEME_$match[1]]=""
+                typeset -gx GIT_BY_ID__THEME_${key}=""
             } else {
-                GIT_BY_ID[THEME_$match[1]]="${match[2]}"
+                typeset -gx GIT_BY_ID__THEME_${key}="${match[2]}"
             }
             
         } else {
@@ -148,59 +147,89 @@ zmodload zsh/pcre
         }
     }
     # check to see if git is using a custom pager
-    # GIT_BY_ID[COLOR_PAGER]=0
-    # [[ "$($commands[${GIT_BY_ID[GIT]}] config --get core.pager 2>/dev/null)" =~ 'git-bid-color' ]] && GIT_BY_ID[COLOR_PAGER]=1
+    # GIT_BY_ID__COLOR_PAGER=0
+    # [[ "$($commands[${GIT_BY_ID__GIT}] config --get core.pager 2>/dev/null)" =~ 'git-bid-color' ]] && GIT_BY_ID__COLOR_PAGER=1
 
     # set up git alias unpacking
     # this makes it so if you have an alias of `alias.st=status` then `git-by-id st` will know you mean `status`
-    local key='' _aliases=$($GIT_BY_ID[GIT_CMD] config --get-regexp alias)
-    function find-alias() { (( $+GIT_BY_ID[ALIAS_$1] )) && find-alias "$GIT_BY_ID[ALIAS_$1]" || echo $1 }
-    for a in ${(f)_aliases} ; {
-        # looks for simple aliases and alias functions with a well formed `: git <cmd>` as the first statement
-        [[ $a =~ '^alias.(\w+)\s+([-\s\w]+)' || $a =~ '^alias.(\w+)\s+!.*:\s*git\s+([-\s\w]+)' ]] \
-            && GIT_BY_ID[ALIAS_${match[1]}]="${match[2]}"
+    local key='' _aliases=$($GIT_BY_ID__GIT_CMD config --get-regexp alias)
+    function find-alias() {
+        local alias_cmd="GIT_BY_ID__ALIAS_$1"
+        [[ -v $alias_cmd ]] && {
+            # print -u2 "found alias: $alias_cmd"
+            find-alias "${(P)alias_cmd}"
+        } || {
+            # print -u2 "no alias: $1"
+            echo $1
+        }
     }
-    for key in ${(k)GIT_BY_ID[(I)ALIAS_*]} ; {
-        GIT_BY_ID[$key]="$(find-alias ${key#ALIAS_*})"  # use find-alias to recursively unpack aliases
+    for a in ${(f)_aliases} ; {
+        # print -u2 "alias: $a"
+        # looks for simple aliases and alias functions with a well formed `: git <cmd>` as the first statement
+        if [[
+            "$a" =~ '^alias.(\w+)\s+([-\s\w]+)' \
+            || "$a" =~ '^alias.([-\w]+)\s+!.*:\s*git\s+([-\s\w]+)'
+        ]] {
+            # print -u2 "match: $a"
+            local \
+                alias_name="GIT_BY_ID__ALIAS_${match[1]/-/_}" \
+                alias_value=${(MS)match[2]##[[:graph:]]*[[:graph:]]}
+            typeset -gx $alias_name="${alias_value}"
+        } else {
+            # print -u2 "skip $a"
+        }
+    }
+    local _aliases=($(typeset +m 'GIT_BY_ID__ALIAS_*'))
+    for key in $_aliases ; {
+        typeset -gx $key="$(find-alias ${key#GIT_BY_ID__ALIAS_*})"  # use find-alias to recursively unpack aliases
     }
 
     # mark time that setup completes (1 if EPOCHREALTIME is disabled)
-    : "${GIT_BY_ID[__SETUP__]:=${EPOCHREALTIME:-1}}"
+    : "${GIT_BY_ID__SETUP_COMPLETE:=${EPOCHREALTIME:-1}}"
 
     # freeze settings
-    typeset -Agr GIT_BY_ID
+    # global export read-only match
+    typeset -gxrm 'GIT_BY_ID__*'
+
+    if (( ${__trace__:-0} > 0 )) {
+        local s settings=( ${(@f)${"$(typeset -m 'GIT_BY_ID__*')"}} )
+        for s in ${(@on)settings} ; {
+            print -Pu2 "%F{yellow}$s%f"
+        }
+    }
 
     # proactively source the file before continuing
     # this loads all the functions and enables faster loading of the commands
     # in subsequent runs this will speed up execution
     [[ -e "$functions_source[git-by-id]" ]] && builtin source $functions_source[git-by-id]
-    xlg-trace "git-by-id: setup complete at ${GIT_BY_ID[__SETUP__]}"
+    print -u2 "git-by-id: setup complete at ${GIT_BY_ID__SETUP_COMPLETE}"
 }
 
 # -------------------------------- entrypoints ------------------------------- #
 (( $+functions[git-bid-entrypoint] )) && {
     # this short-cuts loading the rest of the file when already sourced
     xlg-trace "git-by-id: entrypoint already sourced, using shortcut"
-    xlg-trace "setup at: ${GIT_BY_ID[__SETUP__]}"
+    xlg-trace "setup at: ${GIT_BY_ID__SETUP_COMPLETE}"
     local start_time=$SECONDS
 
     (( ${__trace__:-0} )) && set -x || set +x
 
     # ------------------------- handle the refunc command ------------------------ #
     if (( ${@[(Ie)refunc]} )) {
+        print -Pu2 "%F{red}refunc%F{reset}"
         set -- ${@:#refunc}
         [[ "$@" =~ --trace ]] && local _GIT_BY_ID_VERBOSITY=4
 
-        local start_setup="${GIT_BY_ID[__SETUP__]}"
+        local start_setup="${GIT_BY_ID__SETUP_COMPLETE}"
 
         # git-bid-teardown "$@"
 
         local \
-            arrow=$GIT_BY_ID[THEME_arrow_full] \
-            pharrow=$GIT_BY_ID[THEME_arrow_phat] \
-            yellow=$GIT_BY_ID[THEME_yellow] \
-            white=$GIT_BY_ID[THEME_white] \
-            reset=$GIT_BY_ID[THEME_reset] \
+            arrow=$GIT_BY_ID__THEME_arrow_full \
+            pharrow=$GIT_BY_ID__THEME_arrow_phat \
+            yellow=$GIT_BY_ID__THEME_yellow \
+            white=$GIT_BY_ID__THEME_white \
+            reset=$GIT_BY_ID__THEME_reset \
             sources=("${functions_source[git-by-id]}") \
             bid_funcs=(
                 ${(k)functions[(I)git-by-id*]}
@@ -210,7 +239,7 @@ zmodload zsh/pcre
             )
 
         # ---------------------------------- header ---------------------------------- #
-        xlg "%B${GIT_BY_ID[THEME_yellow]}====> scrubbing git-by-id environment%b${GIT_BY_ID[THEME_reset]}"
+        xlg "%B${GIT_BY_ID__THEME_yellow}====> scrubbing git-by-id environment%b${GIT_BY_ID__THEME_reset}"
         xlg-trace "$arrow args: $@"
         xlg-trace "$arrow shell pid: $$"
         xlg "$pharrow cleaning config$reset"
@@ -240,19 +269,20 @@ zmodload zsh/pcre
                 GIT_IDS_BRANCHES
             )
 
-        (( $#GIT_BY_ID )) && {
-            for key in ${(k)GIT_BY_ID[(I)ALIAS_*]} ; {
-                [[ "$key" != ALIAS_* ]] && continue
-                unset_vars+="GIT_BY_ID[$key]"
-            }
-        }
+        # (( $#GIT_BY_ID )) && {
+        #     for key in ${(k)GIT_BY_ID[(I)ALIAS_*]} ; {
+        #         [[ "$key" != ALIAS_* ]] && continue
+        #         unset_vars+="GIT_BY_ID__$key"
+        #     }
+        # }
 
         # print the vars to scrub
         xlg "$arrow cleaning variables$reset" "\n+>       $white- $yellow"${(on)^unset_vars}"$reset"
         
         # unset the vars
         unset $unset_vars
-        unset -m "${GIT_BY_ID[PREFIX_VAR]}[0-9]##"
+        unset -m "${GIT_BY_ID__PREFIX_VAR}[0-9]##"
+        unset -m 'GIT_BY_ID__*'
 
         # ------------------------------ clean functions ----------------------------- #
         xlg "$arrow unloading functions$white:" "\n+>       $white- $yellow"${(on)^bid_funcs}"$reset"
@@ -264,11 +294,11 @@ zmodload zsh/pcre
 
         [[ "$@" =~ --no-setup ]] && {
             xlg "$arrow skipping setup"
-            xlg-trace "after new typeset __STEUP__: ${GIT_BY_ID[__SETUP__]}"
+            xlg-trace "after new typeset __STEUP__: ${GIT_BY_ID__SETUP_COMPLETE}"
             return
         }
 
-        local end_setup="${GIT_BY_ID[__SETUP__]:-0}"
+        local end_setup="${GIT_BY_ID__SETUP_COMPLETE:-0}"
 
         if [[ "$start_setup" == "$end_setup" ]] {
             # check to see if the setup time was reset
@@ -286,6 +316,7 @@ zmodload zsh/pcre
     xlg-trace "total time in git-bid: $(( $SECONDS - $start_time ))"
     xlg-trace "status: $status"
     return "$status"
+    print -Pu2 "%F{red}post git-bid-entrypoint%F{reset}"
 }
 
 (( $+functions[git-bid-entrypoint] )) || function git-bid-entrypoint() {
@@ -302,8 +333,8 @@ zmodload zsh/pcre
     # verbosity is checked in the following order
     #   1. cli args
     #   2. GIT_BY_ID_VERBOSITY
-    #   3. GIT_BY_ID[VERBOSITY]
-    local -i _GIT_BY_ID_VERBOSITY=${GIT_BY_ID_VERBOSITY:-$GIT_BY_ID[VERBOSITY]}
+    #   3. GIT_BY_ID__VERBOSITY
+    local -i _GIT_BY_ID_VERBOSITY=${GIT_BY_ID_VERBOSITY:-$GIT_BY_ID__VERBOSITY}
     [[ "$flag_v" || "$flag_q" ]] && (( _GIT_BY_ID_VERBOSITY = $#flag_v - $#flag_q ))
     [[ "$flag_level" ]] && case "${flag_level[1]}" {
         --trace) _GIT_BY_ID_VERBOSITY=4 ;;
@@ -320,13 +351,13 @@ zmodload zsh/pcre
     # run the function like normal!
     export LINES
     # disable color for now
-    if (( GIT_BY_ID[EXTRA_COLOR] && $+functions[git-bid-color] )) {
+    if (( GIT_BY_ID__EXTRA_COLOR && $+functions[git-bid-color] )) {
         # run output through a fancy colorizer (but its kinda broken)
         if [[ "$1" == diff ]] {
-            git-bid "$@" 2> >(git-bid-color stderr)
+            # git-bid "$@" 2> >(git-bid-color stderr)
             return $status
         } elif (( $+functions[git-bid-color] )) {
-            git-bid "$@" > >(git-bid-color stdout) 2> >(git-bid-color stderr)
+            # git-bid "$@" > >(git-bid-color stdout) 2> >(git-bid-color stderr)
             return $status
         }
     } else {
@@ -340,11 +371,11 @@ zmodload zsh/pcre
 
 # (( $+functions[git-bid-teardown] )) || function git-bid-teardown() {
 #     local \
-#         arrow=$GIT_BY_ID[THEME_arrow_full] \
-#         arrow_phat=$GIT_BY_ID[THEME_arrow_phat] \
-#         yellow=$GIT_BY_ID[THEME_yellow] \
-#         white=$GIT_BY_ID[THEME_white] \
-#         reset=$GIT_BY_ID[THEME_reset] \
+#         arrow=$GIT_BY_ID__THEME_arrow_full \
+#         arrow_phat=$GIT_BY_ID__THEME_arrow_phat \
+#         yellow=$GIT_BY_ID__THEME_yellow \
+#         white=$GIT_BY_ID__THEME_white \
+#         reset=$GIT_BY_ID__THEME_reset \
 #         sources=("${functions_source[git-by-id]}") \
 #         bid_funcs=(
 #             ${(k)functions[(I)git-by-id*]}
@@ -353,13 +384,13 @@ zmodload zsh/pcre
 #             xlg-fixup
 #         )
 
-#     xlg "%B${GIT_BY_ID[THEME_yellow]}====> scrubbing git-by-id environment%b${GIT_BY_ID[THEME_reset]}"
+#     xlg "%B${GIT_BY_ID__THEME_yellow}====> scrubbing git-by-id environment%b${GIT_BY_ID__THEME_reset}"
 #     xlg-trace "$arrow args: $@"
 #     xlg-trace "shell pid: $$"
 
 #     xlg "$arrow_phat cleaning config$reset"
 #     typeset +r GIT_BY_ID
-#     xlg-trace "after new typeset __STEUP__: ${GIT_BY_ID[__SETUP__]}"
+#     xlg-trace "after new typeset __STEUP__: ${GIT_BY_ID__SETUP_COMPLETE}"
 
 #     git-bid-clean-vars
 
@@ -371,7 +402,7 @@ zmodload zsh/pcre
 
 #     [[ "$@" =~ --no-setup ]] && {
 #         xlg "$arrow skipping setup"
-#         xlg-trace "after new typeset __STEUP__: ${GIT_BY_ID[__SETUP__]}"
+#         xlg-trace "after new typeset __STEUP__: ${GIT_BY_ID__SETUP_COMPLETE}"
 #         return
 #     }
     
@@ -397,7 +428,7 @@ zmodload zsh/pcre
 
     local \
         extra_args=() \
-        cmd="$GIT_BY_ID[GIT_CMD]" \
+        cmd="$GIT_BY_ID__GIT_CMD" \
         unwrapped_cmd \
         branch \
         interactive \
@@ -406,20 +437,20 @@ zmodload zsh/pcre
     zparseopts -D -E \
         -interactive=interactive \
 
-    (( $GIT_BY_ID[LOG_COMMANDS] )) && {
+    (( $GIT_BY_ID__LOG_COMMANDS )) && {
         # logs all git-bid commands to a log
-        print "[$(date)] git-bid $@" >> $GIT_BY_ID[LOGFILE]
+        print "[$(date)] git-bid $@" >> $GIT_BY_ID__LOGFILE
     }
 
     # unwrap the cmd to see if it is an alias, then use that for 
-    if (( $+GIT_BY_ID[ALIAS_$one] )) {
-        unwrapped_cmd="$GIT_BY_ID[ALIAS_$one]"
+    if [[ -n ${(P)${:-GIT_BY_ID__ALIAS_$one}} ]] {
+        unwrapped_cmd="$GIT_BY_ID__ALIAS_$one"
         xlg-trace "unwrapped '$one' to '$unwrapped_cmd'"
-    } elif (( $+GIT_BY_ID[ALIAS_$one_no_i] )) {
-        unwrapped_cmd="$GIT_BY_ID[ALIAS_$one_no_i]"
+    } elif [[ -n ${(P)${:-GIT_BY_ID__ALIAS_$one_no_i}} ]] {
+        unwrapped_cmd="$GIT_BY_ID__ALIAS_$one_no_i"
         xlg-trace "unwrapped '$one' to '$unwrapped_cmd'"
     } elif (
-        (( $GIT_BY_ID[INTERACTIVE_I] )) \
+        (( $GIT_BY_ID__INTERACTIVE_I )) \
         && [[ "$one_no_i" != "$one" ]] \
         && (( $+functions[git-bid-fzf-$one_no_i] || $+functions[git-bid-fzf-$unwrapped_cmd] )) \
     ) {
@@ -557,9 +588,9 @@ zmodload zsh/pcre
 
 (( $+functions[xlg-fixup] )) || function xlg-fixup() {
     local \
-        white=${GIT_BY_ID[THEME_white]} \
-        magenta=${GIT_BY_ID[THEME_magenta]} \
-        reset=${GIT_BY_ID[THEME_reset]} \
+        white=${GIT_BY_ID__THEME_white} \
+        magenta=${GIT_BY_ID__THEME_magenta} \
+        reset=${GIT_BY_ID__THEME_reset} \
         msg c
 
     while [[ "$@" ]] {
@@ -570,8 +601,8 @@ zmodload zsh/pcre
             '->') msg+="$white$c $reset" ;;
             '--') break ;;
             *)
-                (( $+GIT_BY_ID[THEME_$c] )) \
-                    && msg+="$GIT_BY_ID[THEME_$c]" \
+                (( $+GIT_BY_ID__THEME_$c )) \
+                    && msg+="$GIT_BY_ID__THEME_$c" \
                     || msg+="$c "
                 ;;
         }
@@ -600,13 +631,13 @@ zmodload zsh/pcre
         shift
     }
 
-    if [[ "$1" == "$GIT_BY_ID[GIT_CMD]" ]] {
+    if [[ "$1" == "$GIT_BY_ID__GIT_CMD" ]] {
         verbosity=0
     } else {
         # allow for per-git-command verbosity levels via GIT_BY_ID[VERBOSITY__git-<COMMAND>]
         ((
             v1=${_GIT_BY_ID_VERBOSITY:-0},
-            v2=${GIT_BY_ID[VERBOSITY]:-0},
+            v2=${GIT_BY_ID__VERBOSITY:-0},
             verbosity=verbosity > v1 ? verbosity : v1,
             verbosity=verbosity > v2 ? verbosity : v2
         ))
@@ -701,7 +732,7 @@ zmodload zsh/pcre
 }
 
 (( $+functions[git-bid-config] )) || function git-bid-config() {
-    local config_result="$(${GIT_BY_ID[GIT]} config $@ 2>/dev/null)"
+    local config_result="$(${GIT_BY_ID__GIT} config $@ 2>/dev/null)"
     if (( $status == 0 )) && [[ "$config_result" ]] {
         print "$config_result"
     } else {
@@ -733,7 +764,7 @@ zmodload zsh/pcre
         GIT_IDS_UNTRACKED=() \
         GIT_IDS_BRANCHES=()
 
-    unset -m "${GIT_BY_ID[PREFIX_VAR]}[0-9]##"
+    unset -m "${GIT_BY_ID__PREFIX_VAR}[0-9]##"
 }
 
 # ------------------------------- git-bid-tgit ------------------------------- #
@@ -768,8 +799,8 @@ zmodload zsh/pcre
 
     local extract="sed 's/.* \\(.*\\)/\\1/'"
     local fzf_opts=(
-        $GIT_BY_ID[FZF_DEFAULT_OPTS]
-        $GIT_BY_ID[FZF_ADD_OPTS]
+        $GIT_BY_ID__FZF_DEFAULT_OPTS
+        $GIT_BY_ID__FZF_ADD_OPTS
         -0 -m --nth 2..,..
         --ansi
         --preview "
@@ -859,10 +890,10 @@ zmodload zsh/pcre
         master_index=${@[(i)master]} \
         expand_args=()
 
-    has_master_branch="$($GIT_BY_ID[GIT_CMD] branch --list master)"
-    has_main_branch="$($GIT_BY_ID[GIT_CMD] branch --list main)"
+    has_master_branch="$($GIT_BY_ID__GIT_CMD branch --list master)"
+    has_main_branch="$($GIT_BY_ID__GIT_CMD branch --list main)"
 
-    if (( ${GIT_BY_ID[COERSE_TO_MAIN]} )) && [[ 
+    if (( ${GIT_BY_ID__COERSE_TO_MAIN} )) && [[ 
         "$master_index" -le ${#@}
         && -z "$has_master_branch"
         && "$has_main_branch"
@@ -874,7 +905,7 @@ zmodload zsh/pcre
     }
 
     # xlg $dash_b_index
-    if (( ${GIT_BY_ID[BRANCH_NEXT_TO_NUMBER]} )) && [[ $dash_b_index -le ${#@} ]] {
+    if (( ${GIT_BY_ID__BRANCH_NEXT_TO_NUMBER} )) && [[ $dash_b_index -le ${#@} ]] {
         # check for -b group/project-next
         (( dash_b_index++ ))
         local co_branch=${@[$dash_b_index]}
@@ -937,13 +968,13 @@ zmodload zsh/pcre
     # if status is 128 check to see if this was an "accidental branch creation"
     result=$(git-bid-number-expand --byid-execute --byid-branch $cmd "$@" 2>&1)
     print "$result"
-    print  autocorrect=${GIT_BY_ID[AUTOCORRECT_COMMIT_OOPS_BRANCH]}
-    if (( ${GIT_BY_ID[AUTOCORRECT_BRANCH_ALREADY_EXISTS]} )) && [[ "$result" =~ "fatal: A branch named '(.*)' already exists" ]] {
+    print  autocorrect=${GIT_BY_ID__AUTOCORRECT_COMMIT_OOPS_BRANCH}
+    if (( ${GIT_BY_ID__AUTOCORRECT_BRANCH_ALREADY_EXISTS} )) && [[ "$result" =~ "fatal: A branch named '(.*)' already exists" ]] {
         local branch="${match[1]}"
         local sleep_time=$(printf '%.1f' $(($(git-bid-config help.autocorrect) / 10.0)) )
 
         msg=(
-            "${GIT_BY_ID[THEME_warn]}WARNING%f: You tried to make a branch that already exists."
+            "${GIT_BY_ID__THEME_warn}WARNING%f: You tried to make a branch that already exists."
             "Continuing in $sleep_time seconds, assuming that you meant 'checkout'."
         )
         print -Pu2 "${(j:\n:)msg}"
@@ -951,7 +982,7 @@ zmodload zsh/pcre
 
         xlg-cmd $cmd $1 "$branch"
         return $status
-    } elif (( ${GIT_BY_ID[AUTOCORRECT_COMMIT_OOPS_BRANCH]} )) && [[ "$result" =~ "fatal: '\[(.*)\] (.*)' is not a valid branch name" ]] {
+    } elif (( ${GIT_BY_ID__AUTOCORRECT_COMMIT_OOPS_BRANCH} )) && [[ "$result" =~ "fatal: '\[(.*)\] (.*)' is not a valid branch name" ]] {
         local \
             message="[${match[1]}] ${match[2]}" \
             new_branch="${match[1]:gs/ /_/}/next-${match[2]:gs/ /-/}" \
@@ -959,7 +990,7 @@ zmodload zsh/pcre
             sleep_time=$(printf '%.1f' $(($(git-bid-config help.autocorrect) / 10.0)) )
 
         msg=(
-            "${GIT_BY_ID[THEME_warn]}WARNING%f: You tried to use a commit message for a branch name."
+            "${GIT_BY_ID__THEME_warn}WARNING%f: You tried to use a commit message for a branch name."
             "Continuing in $sleep_time seconds assuming that you meant..."
             "    %F{green}git %F{magenta}checkout -b %F{white}\"%F{yellow}$new_branch%F{white}\"%f"
             "    %F{green}git %F{magenta}commit -am %F{white}\"%F{yellow}$commit_msg%F{white}\"%f"
@@ -968,7 +999,7 @@ zmodload zsh/pcre
         sleep $sleep_time
 
         xlg-cmd git-bid checkout -b "$new_branch" \
-            && print -s "${GIT_BY_ID[GIT]} commit -am \"$commit_msg\"" \
+            && print -s "${GIT_BY_ID__GIT} commit -am \"$commit_msg\"" \
             && xlg-cmd git-bid commit -am "$commit_msg"
         return $status
     }
@@ -979,7 +1010,7 @@ zmodload zsh/pcre
     local _yes
     zparseopts -D -E -- y=_yes -yes=_yes
     if [[
-        ${GIT_BY_ID[CONFIRM_PUSH_TO_MAIN]} -eq 1
+        ${GIT_BY_ID__CONFIRM_PUSH_TO_MAIN} -eq 1
         && ! $_yes  # skip if -y or --yes is passed
         && -t 1     # check if fd1 is open for read
         && "$($cmd branch --show-current)" =~ '^(master|main)$'
@@ -1048,7 +1079,7 @@ zmodload zsh/pcre
             return 1
         }
 
-        if (( ${GIT_BY_ID[LOG_EXPANSIONS]} )) {
+        if (( ${GIT_BY_ID__LOG_EXPANSIONS} )) {
             xlg-fixup replace_left $1 -\> replace_right $p
         } else {
             xlg-trace "[$1] -> $p"
@@ -1098,18 +1129,18 @@ zmodload zsh/pcre
     GIT_IDS_COUNT=0
 
     # Fall back to normal git branch, if any unknown args given
-    if (( $(${GIT_BY_ID[GIT]} branch | wc -l) > 300 )) || [[ -n "$@" && "$@" != "-a" ]]; then
-        git-bid-number-expand --byid-execute ${GIT_BY_ID[GIT]} branch "$@"
+    if (( $(${GIT_BY_ID__GIT} branch | wc -l) > 300 )) || [[ -n "$@" && "$@" != "-a" ]]; then
+        git-bid-number-expand --byid-execute ${GIT_BY_ID__GIT} branch "$@"
         return $status
     fi
 
     #TODO add info about commit message: git log master..$branch --oneline | tail -1
     local branches branch= i=0
-    branches=( ${(f)"$(${GIT_BY_ID[GIT]} branch --color=always ${@})"} )
+    branches=( ${(f)"$(${GIT_BY_ID__GIT} branch --color=always ${@})"} )
     for line in ${branches} ; {
         if [[ "$line" =~ "^([ *]{2})(.*)" ]] {
             branch="${match[2]}"
-            print -P "${match[1]}${GIT_BY_ID[THEME_ob]}${GIT_BY_ID[THEME_id]}$((++i))${GIT_BY_ID[THEME_cb]} ${match[2]}"
+            print -P "${match[1]}${GIT_BY_ID__THEME_ob}${GIT_BY_ID__THEME_id}$((++i))${GIT_BY_ID__THEME_cb} ${match[2]}"
             # print -P $(git log --oneline master..$branch | tail -1)
         } else {
             xlg-error "no match '$line'"
@@ -1118,9 +1149,9 @@ zmodload zsh/pcre
 
 
     # Set numbered file shortcut in variable
-    for branch in $(IFS=$'\n' ${GIT_BY_ID[GIT]} branch "$@" | sed "s/^[* ]\{2\}//"); do
-        (( GIT_IDS_COUNT++ && GIT_BY_ID[SET_ID_VARS] && GIT_BY_ID[SET_ID_VARS] )) \
-            && export $GIT_BY_ID[PREFIX_VAR]$GIT_IDS_COUNT="$branch"
+    for branch in $(IFS=$'\n' ${GIT_BY_ID__GIT} branch "$@" | sed "s/^[* ]\{2\}//"); do
+        (( GIT_IDS_COUNT++ && GIT_BY_ID__SET_ID_VARS && GIT_BY_ID__SET_ID_VARS )) \
+            && export $GIT_BY_ID__PREFIX_VAR$GIT_IDS_COUNT="$branch"
         GIT_IDS+=([$GIT_IDS_COUNT]="$branch")
         GIT_IDS_BRANCHES+=([$GIT_IDS_COUNT]="$branch")
     done
@@ -1167,18 +1198,18 @@ zmodload zsh/pcre
 
     zparseopts -E -D -- q=quiet -quiet=quiet
 
-    git_status=( "${(f@)$($GIT_BY_ID[GIT_CMD] $git_args status "$@")}" )
+    git_status=( "${(f@)$($GIT_BY_ID__GIT_CMD $git_args status "$@")}" )
     GIT_IDS_COUNT=0
 
     # local ob="${fg[black]}[$reset_color" cb="${fg[black]}]$reset_color"
     local \
-        _ob="${GIT_BY_ID[THEME_ob]}" \
-        _cb="${GIT_BY_ID[THEME_cb]}" \
-        _id="${GIT_BY_ID[THEME_id]}" \
-        _del="${GIT_BY_ID[THEME_git-del]}" \
-        _new="${GIT_BY_ID[THEME_git-new]}" \
-        _both="${GIT_BY_ID[THEME_git-both]}" \
-        _mod="${GIT_BY_ID[THEME_git-mod]}" \
+        _ob="${GIT_BY_ID__THEME_ob}" \
+        _cb="${GIT_BY_ID__THEME_cb}" \
+        _id="${GIT_BY_ID__THEME_id}" \
+        _del="${GIT_BY_ID__THEME_git_del}" \
+        _new="${GIT_BY_ID__THEME_git_new}" \
+        _both="${GIT_BY_ID__THEME_git_both}" \
+        _mod="${GIT_BY_ID__THEME_git_mod}" \
 
     local ansi='\033\[[[:digit:]|;]*m'
     for line in "${(@)git_status}" ; {
@@ -1221,8 +1252,8 @@ zmodload zsh/pcre
             found_file="${found_file//$'\033'\[([0-9;])#m/}"
             GIT_IDS+=([$GIT_IDS_COUNT]="$found_file")
             typeset -x "${section}[$GIT_IDS_COUNT]"="$found_file"
-            (( GIT_BY_ID[SET_ID_VARS] )) && \
-                export ${GIT_BY_ID[PREFIX_VAR]}$GIT_IDS_COUNT="$found_file"
+            (( GIT_BY_ID__SET_ID_VARS )) && \
+                export ${GIT_BY_ID__PREFIX_VAR}$GIT_IDS_COUNT="$found_file"
         }
     }
 
