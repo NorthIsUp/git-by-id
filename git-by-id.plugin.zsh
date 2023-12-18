@@ -16,5 +16,3 @@ autoload git-by-id
 
 alias gi='git t'
 alias git='git-by-id'
-
-# @zsh-plugin-run-on-update '__git-bid-teardown --no-setup'

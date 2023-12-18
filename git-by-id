@@ -14,7 +14,7 @@ if (( $+GIT_BY_ID__SETUP_COMPLETE && $+functions[git-bid-entrypoint] )) {
     xlg-trace "setup at: ${GIT_BY_ID__SETUP_COMPLETE}"
     local start_time=$SECONDS
 
-    (( ${__trace__:-0} )) && set -x || set +x
+    (( ${__line_trace__:-0} )) && set -x || set +x
 
     # ------------------------- handle the refunc command ------------------------ #
     if (( ${@[(Ie)refunc]} )) {
@@ -261,7 +261,9 @@ if (( $+GIT_BY_ID__SETUP_COMPLETE && $+functions[git-bid-entrypoint] )) {
     # git <git-bid-options> COMMAND <git-options>
     # this zparseopts only parses out options before the git command/alias (hence no -E)
     local flag_v flag_q flag_level
-    zparseopts -D -- \
+    # these opts are removed from $@ for Git
+    # TODO: correctly handle passing --verbose and --quiet
+    zparseopts -D -E -- \
         v+=flag_v -verbose+=flag_v \
         q+=flag_q -quiet+=flag_q \
         -trace=flag_level -debug=flag_level -info=flag_level \
@@ -273,6 +275,15 @@ if (( $+GIT_BY_ID__SETUP_COMPLETE && $+functions[git-bid-entrypoint] )) {
     #   2. GIT_BY_ID_VERBOSITY
     #   3. GIT_BY_ID__VERBOSITY
     local -i _GIT_BY_ID_VERBOSITY=${GIT_BY_ID_VERBOSITY:-$GIT_BY_ID__VERBOSITY}
+    case 1 in
+    $(( __line_trace__ ))) flag_level[1]=--trace ;;
+    $(( __trace__ ))) flag_level[1]=--trace ;;
+    $(( __debug__ ))) flag_level[1]=--debug ;;
+    $(( __info__ ))) flag_level[1]=--info ;;
+    $(( __warn__ ))) flag_level[1]=--warn ;;
+    $(( __error__ ))) flag_level[1]=--error ;;
+    $(( __silent__ ))) flag_level[1]=--silent ;;
+    esac
     [[ "$flag_v" || "$flag_q" ]] && (( _GIT_BY_ID_VERBOSITY = $#flag_v - $#flag_q ))
     [[ "$flag_level" ]] && case "${flag_level[1]}" {
         --trace) _GIT_BY_ID_VERBOSITY=4 ;;
@@ -307,8 +318,8 @@ if (( $+GIT_BY_ID__SETUP_COMPLETE && $+functions[git-bid-entrypoint] )) {
     return $status
 }
 
-(( $+functions[git-bid-refunc] )) || function git-bid-refunc() {
     print -Pu2 "%F{red}re-sourcing all of git-by-id and supporting functions%F{reset}"
+(( $+functions[git-bid-refunc] )) || function git-bid-refunc() {
     set -- ${@:#refunc}
 
     local _GIT_BY_ID_VERBOSITY=2
@@ -414,7 +425,7 @@ if (( $+GIT_BY_ID__SETUP_COMPLETE && $+functions[git-bid-entrypoint] )) {
 #                                   Git By Id                                  #
 # ---------------------------------------------------------------------------- #
 (( $+functions[git-bid] )) || function git-bid() {
-    (( ${__trace__:-0} )) && set -x || set +x
+    (( ${__line_trace__:-0} )) && set -x || set +x
     xlg-trace "git-bid ${(qqqq)@}"
 
     local \
@@ -581,36 +592,43 @@ if (( $+GIT_BY_ID__SETUP_COMPLETE && $+functions[git-bid-entrypoint] )) {
     xlg "${color}${msg}${GIT_BY_ID__THEME_reset}"
 }
 (( $+functions[xlg-trace] )) || function xlg-trace() {
+    { set +x; } 2>/dev/null
     local _status=$status
     (( _GIT_BY_ID_VERBOSITY >= 4 )) && xlg-format trace $@
     return $_status
 }
 (( $+functions[xlg-debug] )) || function xlg-debug() {
+    { set +x; } 2>/dev/null
     local _status=$status
     (( _GIT_BY_ID_VERBOSITY >= 3 )) && xlg-format debug $@
     return $_status
 }
 (( $+functions[xlg-info] )) || function xlg-info() {
+    { set +x; } 2>/dev/null
     local _status=$status
     (( _GIT_BY_ID_VERBOSITY >= 2 )) && xlg-format info $@
     return $_status
 }
 (( $+functions[xlg-warn] )) || function xlg-warn() {
+    { set +x; } 2>/dev/null
     local _status=$status
     (( _GIT_BY_ID_VERBOSITY >= 1 )) && xlg-format warn $@
     return $_status
 }
 (( $+functions[xlg-error] )) || function xlg-error() {
+    { set +x; } 2>/dev/null
     local _status=$status
     (( _GIT_BY_ID_VERBOSITY >= 0 )) && xlg-format error $@
     return $_status
 }
 (( $+functions[xlg-print] )) || function xlg-print() {
+    { set +x; } 2>/dev/null
     local _status=$status
     (( _GIT_BY_ID_VERBOSITY >= -1 )) && xlg %"F{white}$@%f"
     return $_status
 }
 (( $+functions[xlg-fixup] )) || function xlg-fixup() {
+    { set +x; } 2>/dev/null
     local \
         white=${GIT_BY_ID__THEME_white} \
         magenta=${GIT_BY_ID__THEME_magenta} \
@@ -647,6 +665,7 @@ if (( $+GIT_BY_ID__SETUP_COMPLETE && $+functions[git-bid-entrypoint] )) {
 }
 (( $+functions[xlg-cmd] )) || function xlg-cmd() {
     # helper to log a command to stderr
+    { set +x; } 2>/dev/null
     local -i verbosity=0 v1=0 v2=0
 
     if [[ "$1" =~ '^-v|--verbose$' ]] {
