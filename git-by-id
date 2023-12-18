@@ -7,7 +7,7 @@ zmodload zsh/pcre
 #                                   Git By Id                                  #
 # ---------------------------------------------------------------------------- #
 
-(( $+functions[git-by-id] )) || function git-by-id() {
+(( $+functions[-git-by-id] )) || function -git-by-id() {
     (( ${__line_trace__:-0} )) && set -x || set +x
     if (( ! $+GIT_BY_ID__SETUP_COMPLETE )) {
         autoload -Uz git-bid-setup
@@ -552,6 +552,40 @@ zmodload zsh/pcre
 }
 
 # ----------------------------------- utils ---------------------------------- #
+(( $+functions[git-bid-splitup] )) || function git-bid-splitup() {
+    # split up this file into several function files
+    setopt re_match_pcre
+    zmodload zsh/pcre
+
+    pcre_compile -m '^\(\( \$\+functions\[.*\] \)\) \|\| (?P<full>function (?P<name>.*)\(\) (?P<body>\{\n(.*\n)+?^\}))'
+    local \
+        MATCH \
+        match \
+        accum=() \
+        string=$( cat $functions_source[$0] ) \
+        bounds \
+        name \
+        body \
+
+    functions_dir=${functions_source[$0]:h}/functions
+    print $functions_dir
+    [[ -d $functions_dir ]] || return 1
+    rm $functions_dir/*
+
+    pcre_match -b -- $string
+    while [[ $? -eq 0 ]] do
+        bounds=($=ZPCRE_OP)
+        accum+=$MATCH
+        name=$match[2]
+        print "splitting $name"
+        print -r "#!/usr/bin/env zsh
+${name}() ${match[3]}
+" > "$functions_dir/$name"
+
+        pcre_match -b -n $bounds[2] -- $string
+    done
+    # print -l $accum
+}
 (( $+functions[git-bid-use-color] )) || function git-bid-use-color() {
     # only use color if stdout is of type tty
     [[ -t 1 ]]
@@ -1357,3 +1391,5 @@ zmodload zsh/pcre
     }
     return $(( !GIT_IDS_COUNT ))
 }
+
+-git-by-id $@
