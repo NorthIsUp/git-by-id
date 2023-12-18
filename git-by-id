@@ -35,7 +35,7 @@ zmodload zsh/pcre
 
     xlg-trace "total time in git-bid: $(( $SECONDS - $start_time ))"
     xlg-trace "status: $status"
-    # return "$status"
+    return "$status"
     print -Pu2 "%F{red}post git-bid-entrypoint%F{reset}"
 }
 
