@@ -6,20 +6,23 @@ zmodload zsh/pcre
 # ---------------------------------------------------------------------------- #
 #                                   Git By Id                                  #
 # ---------------------------------------------------------------------------- #
-(( $+functions[git-by-id] )) || function git-by-id() {
+(( $+functions[-git-by-id] )) || function -git-by-id() {
+    local start_time=$SECONDS
     (( ${__line_trace__:-0} )) && set -x || set +x  # turn on full tracing of the git command
+
     if (( ! $+GIT_BY_ID__SETUP_COMPLETE )) {
         autoload -Uz -- git-bid-setup
-        git-bid-setup || {
+        git-bid-setup && {
+            print -u2 "setup success"
+        } || {
             print -u2 "setup failed"
             return 1
         }
     } else {
         _bid-lg-trace "git-by-id: entrypoint already sourced, using shortcut"
     }
-    # this short-cuts loading the rest of the file when already sourced
+
     _bid-lg-trace "setup at: ${GIT_BY_ID__SETUP_COMPLETE}"
-    local start_time=$SECONDS
 
     if (( ${@[(Ie)refunc]} )) {
         # handle the refunc command
@@ -34,6 +37,7 @@ zmodload zsh/pcre
 
     _bid-lg-trace "total time in git-bid: $(( $SECONDS - $start_time ))"
     _bid-lg-trace "status: $status"
+
     return "$status"
     print -Pu2 "%F{red}post git-bid-entrypoint%F{reset}"
 }
@@ -247,10 +251,6 @@ zmodload zsh/pcre
         typeset -gx $key="$(find-alias ${key#GIT_BY_ID__ALIAS_*})"  # use find-alias to recursively unpack aliases
     }
 
-    # all the functions loaded as a part of git-by-id, used during the teardown
-    # this config option has no default or ability to override
-    GIT_BY_ID__FUNCS=( ${functions_source[$0]:h}/*(.:t) )
-
     # mark time that setup completes (1 if EPOCHREALTIME is disabled)
     : "${GIT_BY_ID__SETUP_COMPLETE:=${EPOCHREALTIME:-1}}"
 
@@ -271,7 +271,15 @@ zmodload zsh/pcre
     # in subsequent runs this will speed up execution
     # [[ -e "$functions_source[git-by-id]" ]] && builtin source $functions_source[git-by-id]
 
-    autoload -Uz -- $GIT_BY_ID__FUNCS
+    local \
+        bid_funcs=(
+            ${(k)functions[(I)git-by-id]}
+            ${(k)functions[(I)git-bid-*]}
+        ) \
+        bid_util_funcs=(
+            ${(k)functions[(I)_bid-*]}
+        )
+    autoload -Uz -- $bid_funcs $bid_util_funcs
     print -u2 "git-by-id: setup complete at ${GIT_BY_ID__SETUP_COMPLETE}"
 }
 
@@ -377,6 +385,10 @@ zmodload zsh/pcre
 
     # -------------------------------- clean vars -------------------------------- #
     # the variable unsetting must be done at the root level of the file
+
+    # all the functions loaded as a part of git-by-id, used during the teardown
+    # this config option has no default or ability to override
+
     typeset +r GIT_BY_ID    # make it readable
     local \
         key= \
@@ -391,7 +403,13 @@ zmodload zsh/pcre
             GIT_IDS_UNTRACKED
             GIT_IDS_BRANCHES
         ) \
-        bid_funcs=( $GIT_BY_ID__FUNCS ) \
+        bid_funcs=(
+            ${(k)functions[(I)git-by-id]}
+            ${(k)functions[(I)git-bid-*]}
+        ) \
+        bid_util_funcs=(
+            ${(k)functions[(I)_bid-*]}
+        ) \
         refunc_status=0
 
     # print the vars to scrub
@@ -410,12 +428,13 @@ zmodload zsh/pcre
     _bid-lg-print "$arrow unloading functions$white:" "$list_arrow"${(on)^bid_funcs}"$reset"
     unfunction $bid_funcs || refunc_status=1
 
-    # temporaraly reload print functions
-    autoload -Uz -- _bid-lg-print _bid-lg-trace
-
     # -------------------------- autoload for next time -------------------------- #
     _bid-lg-print "$arrow autoloading git-by-id$reset"
     autoload -Uz -- git-by-id || refunc_status=1
+
+    # ------------------------- final logging and cleanup ------------------------ #
+    # temporaraly reload print functions
+    autoload -Uz -- _bid-lg-print _bid-lg-trace
 
     local end_setup="${GIT_BY_ID__SETUP_COMPLETE:-0}"
 
@@ -428,9 +447,12 @@ zmodload zsh/pcre
     } else {
         _bid-lg-trace "teardown complete"
     }
-    
+
     _bid-lg-print "%B${GIT_BY_ID__THEME_yellow}<<<<< scrubbing git-by-id environment complete %b${GIT_BY_ID__THEME_reset}"
-    unfunction $bid_funcs 2>/dev/null || true
+
+    # remove all functions again (to catch the logging functions we just used) but not git-by-id which we just loaded
+    unfunction ${bid_util_funcs} 2>/dev/null || true
+
     return $refunc_status
 }
 
@@ -591,15 +613,14 @@ ${name}() ${match[3]}
     done
     # print -l $accum
 }
-(( $+functions[git-bid-use-color] )) || function git-bid-use-color() {
+(( $+functions[_bid-lg-use-color] )) || function _bid-lg-use-color() {
     # only use color if stdout is of type tty
     [[ -t 1 ]]
 }
 (( $+functions[_bid-lg] )) || function _bid-lg() {
-    { local rc=$? ; set +x ; return $rc } 2>/dev/null  # disable tracing for logging functions
-    local _rc=$status
-    autoload -Uz -- git-bid-use-color
-    if ( git-bid-use-color ) {
+    { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
+    autoload -Uz -- _bid-lg-use-color
+    if ( _bid-lg-use-color ) {
         # check if stdout is a tty
         builtin print -Pu2 "+> $@"
     } else {
@@ -611,8 +632,7 @@ ${name}() ${match[3]}
     return $_rc
 }
 (( $+functions[_bid-lg-inspect] )) || function _bid-lg-inspect() {
-    { local rc=$? ; set +x ; return $rc } 2>/dev/null  # disable tracing for logging functions
-    local _rc=$status
+    { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
     (( _GIT_BY_ID_VERBOSITY >= 4 )) && _bid-lg "%F{black}inspect+> $@%f"
     IFS="\n" && for line in $(cat -) ; do
         _bid-lg "%F{black}inspect>> $line%f"
@@ -643,49 +663,43 @@ ${name}() ${match[3]}
     _bid-lg "${color}${msg}${GIT_BY_ID__THEME_reset}"
 }
 (( $+functions[_bid-lg-trace] )) || function _bid-lg-trace() {
-    { local rc=$? ; set +x ; return $rc } 2>/dev/null  # disable tracing for logging functions
-    local _rc=$status
+    { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
     autoload -Uz -- _bid-lg-format
     (( _GIT_BY_ID_VERBOSITY >= 4 )) && _bid-lg-format trace $@
     return $_rc
 }
 (( $+functions[_bid-lg-debug] )) || function _bid-lg-debug() {
-    { local rc=$? ; set +x ; return $rc } 2>/dev/null  # disable tracing for logging functions
-    local _rc=$status
+    { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
     autoload -Uz -- _bid-lg-format
     (( _GIT_BY_ID_VERBOSITY >= 3 )) && _bid-lg-format debug $@
     return $_rc
 }
 (( $+functions[_bid-lg-info] )) || function _bid-lg-info() {
-    { local rc=$? ; set +x ; return $rc } 2>/dev/null  # disable tracing for logging functions
-    local _rc=$status
+    { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
     autoload -Uz -- _bid-lg-format
     (( _GIT_BY_ID_VERBOSITY >= 2 )) && _bid-lg-format info $@
     return $_rc
 }
 (( $+functions[_bid-lg-warn] )) || function _bid-lg-warn() {
-    { local rc=$? ; set +x ; return $rc } 2>/dev/null  # disable tracing for logging functions
-    local _rc=$status
+    { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
     autoload -Uz -- _bid-lg-format
     (( _GIT_BY_ID_VERBOSITY >= 1 )) && _bid-lg-format warn $@
     return $_rc
 }
 (( $+functions[_bid-lg-error] )) || function _bid-lg-error() {
-    { local rc=$? ; set +x ; return $rc } 2>/dev/null  # disable tracing for logging functions
-    local _rc=$status
+    { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
     autoload -Uz -- _bid-lg-format
     (( _GIT_BY_ID_VERBOSITY >= 0 )) && _bid-lg-format error $@
     return $_rc
 }
 (( $+functions[_bid-lg-print] )) || function _bid-lg-print() {
-    { local rc=$? ; set +x ; return $rc } 2>/dev/null  # disable tracing for logging functions
-    local _rc=$status
+    { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
     autoload -Uz -- _bid-lg
     (( _GIT_BY_ID_VERBOSITY >= -1 )) && _bid-lg %"F{white}$@%f"
     return $_rc
 }
 (( $+functions[_bid-lg-fixup] )) || function _bid-lg-fixup() {
-    { local rc=$? ; set +x ; return $rc } 2>/dev/null  # disable tracing for logging functions
+    { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
     local \
         _rc=$status \
         white=${GIT_BY_ID__THEME_white} \
@@ -724,7 +738,7 @@ ${name}() ${match[3]}
 }
 (( $+functions[_bid-lg-cmd] )) || function _bid-lg-cmd() {
     # helper to log a command to stderr
-    { local rc=$? ; set +x ; return $rc } 2>/dev/null  # disable tracing for logging functions
+    { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
     local -i verbosity=0 v1=0 v2=0
 
     if [[ "$1" =~ '^-v|--verbose$' ]] {
@@ -898,41 +912,54 @@ ${name}() ${match[3]}
         -fzf-success-msg:=success_msg \
         -fzf-empty-msg:=empty_msg \
         -fzf-git-status=git_status \
-        -fzf-extract=extracter \
+        -fzf-extracter:=extracter \
         -u=untracked -untracked=untracked \
 
-    local extract="sed 's/.* \\(.*\\)/\\1/'"
+    local \
+        empty_msg=${empty_msg[2]} \
+        git_cmd=${git_cmd[2]} \
+
+    if [[ $extracter ]] {
+        extracter=${extracter[2]}
+    } else {
+        extracter="awk '{print \$2}'"
+    }
+    local preview="
+        file=\$( echo {} | ${extracter} )
+        if (git status -s -- \$file | grep '^??') &>/dev/null; then  # diff with /dev/null for untracked files
+            git diff --color=always --no-index -- /dev/null \$file | sed '2 s/added:/untracked:/'
+        else
+            git diff --color=always origin/main -- \$file
+        fi
+    "
     local fzf_opts=(
         $GIT_BY_ID__FZF_DEFAULT_OPTS
         $GIT_BY_ID__FZF_ADD_OPTS
         -0 -m --nth 2..,..
         --ansi
-        --preview "
-            file=\$(echo {} | ${extracter[2]})
-            if (git status -s -- \$file | grep '^??') &>/dev/null; then  # diff with /dev/null for untracked files
-                git diff --color=always --no-index -- /dev/null \$file | sed '2 s/added:/untracked:/'
-            else
-                git diff --color=always -- \$file
-            fi
-        "
+        --preview $preview
+        --multi
+        --color header:italic
+        --header "--> [git ${git_cmd}] (Shift-Tab to multi select)"
     )
 
     # get list of files for fzf
-    local chosen=( $(
+    local chosen=(
+        $(
         git-bid status --short $untracked |
         sed '/^$/d' |
         fzf $fzf_opts |
-        sh -c "${extracter[2]}"
-    ) )
-
+        sh -c "${extracter}"
+        )
+    )
 
     if (( ${#chosen} > 0 )) {
-        _bid-lg-cmd git ${git_cmd[2]} $chosen
+        _bid-lg-cmd git ${git_cmd} $chosen
         local _exit_code=$status
         [[ "$git_status" ]] && git status
         return $_exit_code
     } else {
-        print "${empty_msg[2]}"
+        print "${empty_msg}"
         return 1
     }
 }
@@ -941,15 +968,13 @@ ${name}() ${match[3]}
 (( $+functions[git-bid-fzf-add] )) || function git-bid-fzf-add() {
     git-bid-fzf-handle-status-files \
         --fzf-git-cmd add \
-        --fzf-extracter "sed 's/.* \\(.*\\)/\\1/'" \
         --fzf-empty-msg "Nothing added." \
         "$@"
 }
 
 (( $+functions[git-bid-fzf-reset] )) || function git-bid-fzf-reset() {
-        git-bid-fzf-handle-status-files \
+    git-bid-fzf-handle-status-files \
         --fzf-git-cmd reset \
-        --fzf-extracter "sed 's/.* \\(.*\\)/\\1/'" \
         --fzf-empty-msg "Nothing was reset." \
         "$@"
 }
@@ -957,7 +982,6 @@ ${name}() ${match[3]}
 (( $+functions[git-bid-fzf-checkout] )) || function git-bid-fzf-checkout() {
     git-bid-fzf-handle-status-files \
         --fzf-git-cmd checkout \
-        --fzf-extracter "sed 's/.* \\(.*\\)/\\1/'" \
         --fzf-empty-msg "Nothing was checked out." \
         "$@"
 }
@@ -1418,3 +1442,5 @@ ${name}() ${match[3]}
     }
     return $(( !GIT_IDS_COUNT ))
 }
+
+-git-by-id $@
