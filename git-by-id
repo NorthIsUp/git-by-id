@@ -13,7 +13,7 @@ zmodload zsh/pcre
     if (( ! $+GIT_BY_ID__SETUP_COMPLETE )) {
         autoload -Uz -- git-bid-setup
         git-bid-setup && {
-            print -u2 "setup success"
+            print -u2 "setup success" 
         } || {
             print -u2 "setup failed"
             return 1
@@ -144,8 +144,6 @@ zmodload zsh/pcre
         [error]=err
     )
 
-
-
     # setup the theme
     local _theme=(
         'default=%F{default}'
@@ -219,7 +217,7 @@ zmodload zsh/pcre
 
     # set up git alias unpacking
     # this makes it so if you have an alias of `alias.st=status` then `git-by-id st` will know you mean `status`
-    local key='' _aliases=$($GIT_BY_ID__GIT_CMD config --get-regexp alias)
+    local key='' _aliases=$($GIT_BY_ID__GIT_CMD config --get-regexp alias | cat)
     function find-alias() {
         local alias_cmd="GIT_BY_ID__ALIAS_$1"
         [[ -v $alias_cmd ]] && {
@@ -233,13 +231,18 @@ zmodload zsh/pcre
     for a in ${(f)_aliases} ; {
         # print -u2 "alias: $a"
         # looks for simple aliases and alias functions with a well formed `: git <cmd>` as the first statement
+        # e.g.
+        #   alias.st=status
+        #   alias.st=! git status
+        #   alias.st= !"f(){ : git status } ; f"
         if [[
             "$a" =~ '^alias.(\w+)\s+([-\s\w]+)' \
             || "$a" =~ '^alias.([-\w]+)\s+!.*:\s*git\s+([-\s\w]+)'
+            || "$a" =~ '^alias.([-\w]+)\s+!\s*git\s+([-\s\w]+)'
         ]] {
             # print -u2 "match: $a"
             local \
-                alias_name="GIT_BY_ID__ALIAS_${match[1]/-/_}" \
+                alias_name="GIT_BY_ID__ALIAS_${match[1]//-/_}" \
                 alias_value=${(MS)match[2]##[[:graph:]]*[[:graph:]]}
             typeset -gx $alias_name="${alias_value}"
         } else {
@@ -615,7 +618,8 @@ ${name}() ${match[3]}
 }
 (( $+functions[_bid-lg-use-color] )) || function _bid-lg-use-color() {
     # only use color if stdout is of type tty
-    [[ -t 1 ]]
+    # [[ -t 1 ]]
+    true
 }
 (( $+functions[_bid-lg] )) || function _bid-lg() {
     { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
