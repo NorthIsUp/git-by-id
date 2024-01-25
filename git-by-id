@@ -7,6 +7,7 @@ zmodload zsh/pcre
 #                                   Git By Id                                  #
 # ---------------------------------------------------------------------------- #
 (( $+functions[-git-by-id] )) || function -git-by-id() {
+
     local start_time=$SECONDS
     (( ${__line_trace__:-0} )) && set -x || set +x  # turn on full tracing of the git command
 
@@ -171,8 +172,8 @@ zmodload zsh/pcre
         'replace_white=%F{white}'   # what goes arround and inbetween
 
         #log colors
-        '_bid-lg-trace=%F{black}'
-        '_bid-lg-debug=%F{black}'
+        '_bid-lg-trace=%F{#5A5A5A}'
+        '_bid-lg-debug=%F{#5A5A5A}'
         '_bid-lg-info=%F{white}'
         '_bid-lg-warn=%F{#FFA500}'
         '_bid-lg-error=%F{red}%B'
@@ -408,6 +409,8 @@ zmodload zsh/pcre
         ) \
         bid_funcs=(
             ${(k)functions[(I)git-by-id]}
+            ${(k)functions[(I)-git-by-id]}
+            ${(k)functions[(I)git-bid]}
             ${(k)functions[(I)git-bid-*]}
         ) \
         bid_util_funcs=(
@@ -535,6 +538,7 @@ zmodload zsh/pcre
             extra_args+=--verbose
             ;&
         (commit | blame | add | log | rebase | merge | difftool)
+        
             git-bid-number-expand --byid-execute $cmd $one $extra_args "${@:2}"
             ;;
         (rm | reset )
@@ -1034,7 +1038,7 @@ ${name}() ${match[3]}
         && "$has_main_branch"
     ]] {
         _bid-lg-fixup green git red master -\> green git magenta main -- "${@[3,-1]}"
-        local args=($@)
+        local args=("$@")
         args[$master_index]="main"
         set - $args
     }
@@ -1078,7 +1082,7 @@ ${name}() ${match[3]}
 
             _bid-lg-info "next branch: %F{magenta}$co_branch%f"
 
-            local args=($@)
+            local args=("$@")
             args[$dash_b_index]="$co_branch"
             set - $args
         }
@@ -1181,7 +1185,7 @@ ${name}() ${match[3]}
             [[ ${${should_push:-no}:l} =~ '^(n|no|exit)$' ]] && return 1
         }
     }
-    $cmd $@
+    $cmd "$@"
 }
 
 # ---------------------------------------------------------------------------- #
@@ -1260,6 +1264,7 @@ ${name}() ${match[3]}
     }
 
     setopt re_match_pcre
+    print -P -- "${(qqqq)@}"
     for arg in "$@"; do
         _bid-lg-trace "arg: ${(qqqq)arg}"
         if [[ "$arg" =~ ^[0-9]{1,4}$ ]] {
@@ -1447,4 +1452,4 @@ ${name}() ${match[3]}
     return $(( !GIT_IDS_COUNT ))
 }
 
--git-by-id $@
+-git-by-id "$@"
