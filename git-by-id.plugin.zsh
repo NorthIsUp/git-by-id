@@ -10,8 +10,13 @@
 0="${ZERO:-${${0:#$ZSH_ARGZERO}:-${(%):-%N}}}"
 0="${${(M)0:#/*}:-$PWD/$0}"
 
-fpath+=( "${0:h}" )
-fpath+=( "${0:h}/functions" )
+# 
+if [[ -d "${0:h}/functions" ]] ; then 
+    # if the plugin has been split into functions, add the functions directory to the fpath
+    fpath+=( "${0:h}/functions/" )
+else
+    fpath+=( "${0:h}" )
+fi
 
 autoload -Uz git-by-id
 

@@ -1,4 +1,4 @@
-#compdef git-bid=git
+#compdef git-bid=git git-by-id=git
 #!/usr/bin/env zsh
 # code: language=zsh
 setopt re_match_pcre
@@ -8,7 +8,7 @@ zmodload zsh/pcre
 # ---------------------------------------------------------------------------- #
 (( $+functions[-git-by-id] )) || function -git-by-id() {
 
-    local start_time=$SECONDS
+    local start_time=$EPOCHREALTIME
     (( ${__line_trace__:-0} )) && set -x || set +x  # turn on full tracing of the git command
 
     if (( ! $+GIT_BY_ID__SETUP_COMPLETE )) {
@@ -19,11 +19,7 @@ zmodload zsh/pcre
             print -u2 "setup failed"
             return 1
         }
-    } else {
-        _bid-lg-trace "git-by-id: entrypoint already sourced, using shortcut"
     }
-
-    _bid-lg-trace "setup at: ${GIT_BY_ID__SETUP_COMPLETE}"
 
     if (( ${@[(Ie)refunc]} )) {
         # handle the refunc command
@@ -35,9 +31,6 @@ zmodload zsh/pcre
         autoload -Uz -- git-bid-entrypoint
         git-bid-entrypoint "$@"
     }
-
-    _bid-lg-trace "total time in git-bid: $(( $SECONDS - $start_time ))"
-    _bid-lg-trace "status: $status"
 
     return "$status"
     print -Pu2 "%F{red}post git-bid-entrypoint%F{reset}"
@@ -212,9 +205,6 @@ zmodload zsh/pcre
             print -u2 "'$segment' is an invalid theme option"
         }
     }
-    # check to see if git is using a custom pager
-    # GIT_BY_ID__COLOR_PAGER=0
-    # [[ "$($commands[${GIT_BY_ID__GIT}] config --get core.pager 2>/dev/null)" =~ 'git-bid-color' ]] && GIT_BY_ID__COLOR_PAGER=1
 
     # set up git alias unpacking
     # this makes it so if you have an alias of `alias.st=status` then `git-by-id st` will know you mean `status`
@@ -291,7 +281,7 @@ zmodload zsh/pcre
 (( $+functions[git-bid-entrypoint] )) || function git-bid-entrypoint() {
     # git <git-bid-options> COMMAND <git-options>
     # this zparseopts only parses out options before the git command/alias (hence no -E)
-    local flag_v flag_q flag_level
+    local flag_v flag_q flag_level start_time=$EPOCHREALTIME
     # these opts are removed from $@ for Git
     # TODO: correctly handle passing --verbose and --quiet
     zparseopts -D -E -- \
@@ -307,45 +297,34 @@ zmodload zsh/pcre
     #   3. GIT_BY_ID__VERBOSITY
     local -i _GIT_BY_ID_VERBOSITY=${GIT_BY_ID_VERBOSITY:-$GIT_BY_ID__VERBOSITY}
     case 1 in
-    $(( __line_trace__ ))) flag_level[1]=--trace ;;
-    $(( __trace__ ))) flag_level[1]=--trace ;;
-    $(( __debug__ ))) flag_level[1]=--debug ;;
-    $(( __info__ ))) flag_level[1]=--info ;;
-    $(( __warn__ ))) flag_level[1]=--warn ;;
-    $(( __error__ ))) flag_level[1]=--error ;;
-    $(( __silent__ ))) flag_level[1]=--silent ;;
+        ${__line_trace__:-0})   flag_level[1]=--trace ;;
+        ${__trace__:-0})        flag_level[1]=--trace ;;
+        ${__debug__:-0})        flag_level[1]=--debug ;;
+        ${__info__:-0})         flag_level[1]=--info ;;
+        ${__warn__:-0})         flag_level[1]=--warn ;;
+        ${__error__:-0})        flag_level[1]=--error ;;
+        ${__silent__:-0})       flag_level[1]=--silent ;;
     esac
     [[ "$flag_v" || "$flag_q" ]] && (( _GIT_BY_ID_VERBOSITY = $#flag_v - $#flag_q ))
     [[ "$flag_level" ]] && case "${flag_level[1]}" {
-        --trace) _GIT_BY_ID_VERBOSITY=4 ;;
-        --debug) _GIT_BY_ID_VERBOSITY=3 ;;
-        --info) _GIT_BY_ID_VERBOSITY=2 ;;
-        --warn) _GIT_BY_ID_VERBOSITY=1 ;;
-        --error) _GIT_BY_ID_VERBOSITY=0 ;;
-        --silent) _GIT_BY_ID_VERBOSITY=-1 ;;
+        --trace)    _GIT_BY_ID_VERBOSITY=4 ;;
+        --debug)    _GIT_BY_ID_VERBOSITY=3 ;;
+        --info)     _GIT_BY_ID_VERBOSITY=2 ;;
+        --warn)     _GIT_BY_ID_VERBOSITY=1 ;;
+        --error)    _GIT_BY_ID_VERBOSITY=0 ;;
+        --silent)   _GIT_BY_ID_VERBOSITY=-1 ;;
     }
-    _bid-lg-debug "set verbosity to $_GIT_BY_ID_VERBOSITY"
+    _bid-lg-trace "git-bid-entrypoint at: $start_time"
+    _bid-lg-trace "git-bid-setup at: ${GIT_BY_ID__SETUP_COMPLETE}"
+    _bid-lg-debug "verbosity set to: '${flag_level#--*}' $_GIT_BY_ID_VERBOSITY"
 
-    local start_time=$SECONDS
 
     # run the function like normal!
     export LINES
-    # disable color for now
-    if (( GIT_BY_ID__EXTRA_COLOR && $+functions[git-bid-color] )) {
-        # run output through a fancy colorizer (but its kinda broken)
-        if [[ "$1" == diff ]] {
-            # git-bid "$@" 2> >(git-bid-color stderr)
-            return $status
-        } elif (( $+functions[git-bid-color] )) {
-            # git-bid "$@" > >(git-bid-color stdout) 2> >(git-bid-color stderr)
-            return $status
-        }
-    } else {
-        # run git-bid
-        git-bid "$@"
-        return $status
-    }
-    _bid-lg-trace "total time in git-bid: $(( $SECONDS - $start_time ))"
+    # run git-bid
+    git-bid "$@"
+    _bid-lg-trace "status: $status"
+    _bid-lg-trace "total time in git-bid: $(( $EPOCHREALTIME - $start_time ))"
     return $status
 }
 
@@ -486,7 +465,6 @@ zmodload zsh/pcre
     }
 
     # unwrap the cmd to see if it is an alias, then use that for 
-    _bid-lg-trace GIT_BY_ID__ALIAS_$one=${(P)${:-GIT_BY_ID__ALIAS_$one}}
     if [[ -n ${(P)${:-GIT_BY_ID__ALIAS_$one}} ]] {
         unwrapped_cmd=${(P)${:-GIT_BY_ID__ALIAS_$one}}
         _bid-lg-trace "unwrapped '$one' to '$unwrapped_cmd' (via $GIT_BY_ID__ALIAS_$one)"
@@ -538,7 +516,6 @@ zmodload zsh/pcre
             extra_args+=--verbose
             ;&
         (commit | blame | add | log | rebase | merge | difftool)
-        
             git-bid-number-expand --byid-execute $cmd $one $extra_args "${@:2}"
             ;;
         (rm | reset )
@@ -602,11 +579,11 @@ zmodload zsh/pcre
         body \
 
     functions_dir=${functions_source[$0]:h}/functions
-    print $functions_dir
-    [[ -d $functions_dir ]] || return 1
-    rm --interactive $functions_dir/*
+    print "dest dir $functions_dir"
+    [[ -d $functions_dir ]] && rm -r $functions_dir
+    mkdir -p $functions_dir
 
-    pcre_match -b -- $string
+    pcre_match -b "$string"
     while [[ $? -eq 0 ]] do
         bounds=($=ZPCRE_OP)
         accum+=$MATCH
@@ -616,7 +593,7 @@ zmodload zsh/pcre
 ${name}() ${match[3]}
 " > "$functions_dir/$name"
 
-        pcre_match -b -n $bounds[2] -- $string
+        pcre_match -n $bounds[2] -b "$string"
     done
     # print -l $accum
 }
@@ -659,12 +636,17 @@ ${name}() ${match[3]}
         level=$1 \
         lvl=$GIT_BY_ID__LOG_LEVELS[$1] \
         args=${@[2,-1]} \
-        color=${(P)${:-GIT_BY_ID__THEME__bid_lg_$1}}
+        color=${(P)${:-GIT_BY_ID__THEME__bid_lg_$1}} \
+        depth=0
+
+
+    until [[ "${funcstack[$(( ++depth ))]}" != _* ]] {}
 
     msg=${(P)${:-GIT_BY_ID__LOG_FORMAT_${(U)level}}}
     msg=${msg/\%level/$level}
     msg=${msg/\%lvl/$lvl}
-    msg=${msg/\%file_line/${${funcfiletrace[2]}:t}}
+    msg=${msg/\%file_line/${(r:20:)${funcfiletrace[$(( depth - 1 ))]}:t}}
+    msg=${msg/\%func/${funcstack[$depth]}}
     msg=${msg/\%now/$EPOCHSECONDS}
     msg=${msg/\%msg/$args}
 
@@ -778,85 +760,6 @@ ${name}() ${match[3]}
 }
 
 # ----------------------------- helper funcitons ----------------------------- #
-(( $+functions[git-bid-color] )) || function git-bid-color() {
-    setopt re_match_pcre
-    zmodload zsh/pcre
-
-    local u=0
-    [[ "$1" == 'stderr' ]] && u=1
-    while IFS= read -u$u -r line ; do
-        # line=${line/origin/"%F{red}origin%f"}
-        print -P "$line"
-    done
-    # while read -u$u -rd= line ; {
-
-        # echo $line
-        # line=${line/zmodload/"%F{red}zmodload%f"}
-        # git
-        # if [[ "$line" =~ "(CONFLICT)"] {
-        #     RED(M1)
-        # }
-        # if [[ "$line" =~ "(fatal:)(.*)"] {
-        #     BRIGHT_RED(M1)RED(M2)
-        # }
-        # if [[ "$line" =~ "(Continuing in [[:digit:].]+ seconds)"] {
-        #     YELLOW(M1)
-        # }
-        # if [[ "$line" =~ "(Everything up-to-date)"] {
-        #     GREEN(M1)
-        # }
-        
-        # # pre-commit
-        # if [[ "$line" =~ "(Passed)$"] {
-        #     GREEN(M1)
-        # }
-        # if [[ "$line" =~ "(Skipped)$"] {
-        #     YELLOW(M1)
-        # }
-        # if [[ "$line" =~ "(.*Failed)$"] {
-        #     RED(M1)
-        # }
-
-        # # branches
-        # if [[ "$line" =~ "(master)"] {
-        #     MAGENTA(M1);
-        # }
-        # if [[ "$line" =~ "(main)"] {
-        #     MAGENTA(M1);
-        # }
-    # }
-    # gawk -i stdlib.awk -v outfile="/dev/$1" '
-    # function foo(hello) { return "there"; }
-    # function recolor(expression, colorize) { a = gensub(expression, colorize, "g", a); }
-    # BEGIN {
-    #     M1="\\1"
-    #     M2="\\2"
-
-    #     # git
-    #     recolors["(CONFLICT)"] = RED(M1)
-    #     recolors["(fatal:)(.*)"] = BRIGHT_RED(M1)RED(M2)
-    #     recolors["(Continuing in [[:digit:].]+ seconds)"] = YELLOW(M1)
-    #     recolors["(Everything up-to-date)"] = GREEN(M1)
-
-    #     # pre-commit
-    #     recolors["(Passed)$"] = GREEN(M1)
-    #     recolors["(Skipped)$"] = YELLOW(M1)
-    #     recolors["(.*Failed)$"] = RED(M1)
-
-    #     # branches
-    #     recolors["(master)"] = MAGENTA(M1);
-    #     recolors["(main)"] = MAGENTA(M1);
-    # }
-    # {
-    #     a = $0
-    #     for (expr in recolors) {
-    #         a = gensub(expr, recolors[expr], "g", a)
-    #     }
-    #     '$extra'
-    #     print(a) > outfile;
-    # }' -
-}
-
 (( $+functions[git-bid-config] )) || function git-bid-config() {
     local config_result="$(${GIT_BY_ID__GIT} config $@ 2>/dev/null)"
     if (( $status == 0 )) && [[ "$config_result" ]] {
@@ -1264,7 +1167,6 @@ ${name}() ${match[3]}
     }
 
     setopt re_match_pcre
-    print -P -- "${(qqqq)@}"
     for arg in "$@"; do
         _bid-lg-trace "arg: ${(qqqq)arg}"
         if [[ "$arg" =~ ^[0-9]{1,4}$ ]] {
