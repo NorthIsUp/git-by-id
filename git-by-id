@@ -14,7 +14,7 @@ zmodload zsh/pcre
     if (( ! $+GIT_BY_ID__SETUP_COMPLETE )) {
         autoload -Uz -- git-bid-setup
         git-bid-setup && {
-            print -u2 "setup success" 
+            print -u2 "setup success"
         } || {
             print -u2 "setup failed"
             return 1
@@ -43,7 +43,7 @@ zmodload zsh/pcre
 
     (( $+GIT_BY_ID__SETUP_COMPLETE )) && return 0
     : "${GIT_BY_ID__SETUP_START:=${EPOCHREALTIME:-1}}"
-    
+
     # set up completions
     (( $+functions[compdef] )) && compdef git-bid=git git-by-id=git
 
@@ -87,7 +87,7 @@ zmodload zsh/pcre
 
     # should id variables (`g23`, etc.) be set when creating the ids
     : "${GIT_BY_ID__SET_ID_VARS:=1}"
-    
+
     # the git id variable prefix, defaults to "g"
     : "${GIT_BY_ID__PREFIX_VAR:=g}"
 
@@ -120,7 +120,7 @@ zmodload zsh/pcre
     : "${GIT_BY_ID__FZF_DEFAULT_OPTS:=}"
 
     # prefix for log lines
-    # 
+    #
     #   level       - long form name (trace, debug, info, warn, error)
     #   lvl         - short level name (trc, dbg, inf, wrn, err)
     #   now         - $EPOCHSECONDS
@@ -165,12 +165,12 @@ zmodload zsh/pcre
         'replace_white=%F{white}'   # what goes arround and inbetween
 
         #log colors
-        '_bid-lg-trace=%F{#5A5A5A}'
-        '_bid-lg-debug=%F{#5A5A5A}'
-        '_bid-lg-info=%F{white}'
-        '_bid-lg-warn=%F{#FFA500}'
-        '_bid-lg-error=%F{red}%B'
-        '_bid-lg-reset=%f%b'
+        '-bid-lg-trace=%F{#5A5A5A}'
+        '-bid-lg-debug=%F{#5A5A5A}'
+        '-bid-lg-info=%F{white}'
+        '-bid-lg-warn=%F{#FFA500}'
+        '-bid-lg-error=%F{red}%B'
+        '-bid-lg-reset=%f%b'
 
         # colors by name
         'black=%F{black}'
@@ -200,7 +200,7 @@ zmodload zsh/pcre
             } else {
                 typeset -gx GIT_BY_ID__THEME_${key}="${match[2]}"
             }
-            
+
         } else {
             print -u2 "'$segment' is an invalid theme option"
         }
@@ -271,7 +271,7 @@ zmodload zsh/pcre
             ${(k)functions[(I)git-bid-*]}
         ) \
         bid_util_funcs=(
-            ${(k)functions[(I)_bid-*]}
+            ${(k)functions[(I)-bid-*]}
         )
     autoload -Uz -- $bid_funcs $bid_util_funcs
     print -u2 "git-by-id: setup complete at ${GIT_BY_ID__SETUP_COMPLETE}"
@@ -314,17 +314,17 @@ zmodload zsh/pcre
         --error)    _GIT_BY_ID_VERBOSITY=0 ;;
         --silent)   _GIT_BY_ID_VERBOSITY=-1 ;;
     }
-    _bid-lg-trace "git-bid-entrypoint at: $start_time"
-    _bid-lg-trace "git-bid-setup at: ${GIT_BY_ID__SETUP_COMPLETE}"
-    _bid-lg-debug "verbosity set to: '${flag_level#--*}' $_GIT_BY_ID_VERBOSITY"
+    -bid-lg-trace "git-bid-entrypoint at: $start_time"
+    -bid-lg-trace "git-bid-setup at: ${GIT_BY_ID__SETUP_COMPLETE}"
+    -bid-lg-debug "verbosity set to: '${flag_level#--*}' $_GIT_BY_ID_VERBOSITY"
 
 
     # run the function like normal!
     export LINES
     # run git-bid
     git-bid "$@"
-    _bid-lg-trace "status: $status"
-    _bid-lg-trace "total time in git-bid: $(( $EPOCHREALTIME - $start_time ))"
+    -bid-lg-trace "status: $status"
+    -bid-lg-trace "total time in git-bid: $(( $EPOCHREALTIME - $start_time ))"
     return $status
 }
 
@@ -353,16 +353,16 @@ zmodload zsh/pcre
         list_arrow="\n+>       $white- $yellow"
 
     # ---------------------------------- header ---------------------------------- #
-    _bid-lg-print "%B${GIT_BY_ID__THEME_yellow}>>>>> scrubbing git-by-id environment%b${GIT_BY_ID__THEME_reset}"
-    _bid-lg-trace "$arrow args: $@"
-    _bid-lg-trace "$arrow shell pid: $$"
-    _bid-lg-print "$pharrow cleaning config$reset"
+    -bid-lg-print "%B${GIT_BY_ID__THEME_yellow}>>>>> scrubbing git-by-id environment%b${GIT_BY_ID__THEME_reset}"
+    -bid-lg-trace "$arrow args: $@"
+    -bid-lg-trace "$arrow shell pid: $$"
+    -bid-lg-print "$pharrow cleaning config$reset"
 
     (( $#sources )) && {
         for line in ${(f)"$(shasum $sources)"} ; {
             [[ $line =~ '^([a-z0-9]+) (.*)$' ]] \
-                && _bid-lg-print "$arrow ${match[1][1,8]} $white${(D)match[2]}$reset" \
-                || _bid-lg-print "$line"
+                && -bid-lg-print "$arrow ${match[1][1,8]} $white${(D)match[2]}$reset" \
+                || -bid-lg-print "$line"
         }
     }
 
@@ -393,47 +393,47 @@ zmodload zsh/pcre
             ${(k)functions[(I)git-bid-*]}
         ) \
         bid_util_funcs=(
-            ${(k)functions[(I)_bid-*]}
+            ${(k)functions[(I)-bid-*]}
         ) \
         refunc_status=0
 
     # print the vars to scrub
-    _bid-lg-print "$arrow cleaning variables$reset" $list_arrow${(on)^unset_vars}"$reset"
+    -bid-lg-print "$arrow cleaning variables$reset" $list_arrow${(on)^unset_vars}"$reset"
     typeset +r -x $unset_vars || refunc_status=1
     unset $unset_vars || refunc_status=1
 
-    _bid-lg-print "$arrow cleaning prefix variables$reset" $list_arrow"${GIT_BY_ID__PREFIX_VAR}[0-9]##"
+    -bid-lg-print "$arrow cleaning prefix variables$reset" $list_arrow"${GIT_BY_ID__PREFIX_VAR}[0-9]##"
     unset -m "${GIT_BY_ID__PREFIX_VAR}[0-9]##" || refunc_status=1
 
-    _bid-lg-print "$arrow cleaning config variables$reset" $list_arrow"GIT_BY_ID__*"
+    -bid-lg-print "$arrow cleaning config variables$reset" $list_arrow"GIT_BY_ID__*"
     typeset +r -xm 'GIT_BY_ID__*' || refunc_status=1
     unset -m 'GIT_BY_ID__*' || refunc_status=1
 
     # ------------------------------ clean functions ----------------------------- #
-    _bid-lg-print "$arrow unloading functions$white:" "$list_arrow"${(on)^bid_funcs}"$reset"
+    -bid-lg-print "$arrow unloading functions$white:" "$list_arrow"${(on)^bid_funcs}"$reset"
     unfunction $bid_funcs || refunc_status=1
 
     # -------------------------- autoload for next time -------------------------- #
-    _bid-lg-print "$arrow autoloading git-by-id$reset"
+    -bid-lg-print "$arrow autoloading git-by-id$reset"
     autoload -Uz -- git-by-id || refunc_status=1
 
     # ------------------------- final logging and cleanup ------------------------ #
     # temporaraly reload print functions
-    autoload -Uz -- _bid-lg-print _bid-lg-trace
+    autoload -Uz -- -bid-lg-print -bid-lg-trace
 
     local end_setup="${GIT_BY_ID__SETUP_COMPLETE:-0}"
 
     if [[ "$start_setup" == "$end_setup" ]] {
         # check to see if the setup time was reset
         refunc_status=1
-        _bid-lg-trace "teardown failed, GIT_BY_ID not reset"
-        _bid-lg-trace "$start_setup should not equal $end_setup"
-        _bid-lg-trace "shell pid: $$"
+        -bid-lg-trace "teardown failed, GIT_BY_ID not reset"
+        -bid-lg-trace "$start_setup should not equal $end_setup"
+        -bid-lg-trace "shell pid: $$"
     } else {
-        _bid-lg-trace "teardown complete"
+        -bid-lg-trace "teardown complete"
     }
 
-    _bid-lg-print "%B${GIT_BY_ID__THEME_yellow}<<<<< scrubbing git-by-id environment complete %b${GIT_BY_ID__THEME_reset}"
+    -bid-lg-print "%B${GIT_BY_ID__THEME_yellow}<<<<< scrubbing git-by-id environment complete %b${GIT_BY_ID__THEME_reset}"
 
     # remove all functions again (to catch the logging functions we just used) but not git-by-id which we just loaded
     unfunction ${bid_util_funcs} 2>/dev/null || true
@@ -446,7 +446,7 @@ zmodload zsh/pcre
 # ---------------------------------------------------------------------------- #
 (( $+functions[git-bid] )) || function git-bid() {
     (( ${__line_trace__:-0} )) && set -x || set +x  # turn on full tracing of the git command
-    _bid-lg-trace "git-bid ${(qqqq)@}"
+    -bid-lg-trace "git-bid ${(qqqq)@}"
 
     local \
         extra_args=() \
@@ -455,7 +455,7 @@ zmodload zsh/pcre
         branch \
         interactive \
         one="$1" one_no_i="${1%i}" \
-    
+
     zparseopts -D -E \
         -interactive=interactive \
 
@@ -464,32 +464,32 @@ zmodload zsh/pcre
         print "[$(date)] git-bid $@" >> $GIT_BY_ID__LOGFILE
     }
 
-    # unwrap the cmd to see if it is an alias, then use that for 
+    # unwrap the cmd to see if it is an alias, then use that for
     if [[ -n ${(P)${:-GIT_BY_ID__ALIAS_$one}} ]] {
         unwrapped_cmd=${(P)${:-GIT_BY_ID__ALIAS_$one}}
-        _bid-lg-trace "unwrapped '$one' to '$unwrapped_cmd' (via $GIT_BY_ID__ALIAS_$one)"
+        -bid-lg-trace "unwrapped '$one' to '$unwrapped_cmd' (via $GIT_BY_ID__ALIAS_$one)"
     } elif [[ -n ${(P)${:-GIT_BY_ID__ALIAS_$one_no_i}} ]] {
         unwrapped_cmd=${(P)${:-GIT_BY_ID__ALIAS_$one_no_i}}
-        _bid-lg-trace "unwrapped '$one' to '$unwrapped_cmd'"
+        -bid-lg-trace "unwrapped '$one' to '$unwrapped_cmd'"
     } elif (
         (( $GIT_BY_ID__INTERACTIVE_I )) \
         && [[ "$one_no_i" != "$one" ]] \
         && (( $+functions[git-bid-fzf-$one_no_i] || $+functions[git-bid-fzf-$unwrapped_cmd] )) \
     ) {
-        _bid-lg-fixup green git replace_left $one -\> green git replace_right "$one_no_i"
+        -bid-lg-fixup green git replace_left $one -\> green git replace_right "$one_no_i"
         one="$one_no_i"  # trim i off the end
         unwrapped_cmd="$one_no_i"
         (( ! $extra_args[(Ie)--byid-interactive] )) && extra_args+=(--byid-interactive)
-        _bid-lg-trace "interactive unwrapped '$one' to '$unwrapped_cmd'"
+        -bid-lg-trace "interactive unwrapped '$one' to '$unwrapped_cmd'"
     } else {
-        _bid-lg-trace "'$one' is not wrapped"
+        -bid-lg-trace "'$one' is not wrapped"
         unwrapped_cmd="$one"
     }
 
     if [[ "$one" != "$unwrapped_cmd" ]] && {
-        _bid-lg-fixup green git replace_left $one -\> green git replace_right $unwrapped_cmd
+        -bid-lg-fixup green git replace_left $one -\> green git replace_right $unwrapped_cmd
         # don't do this, it will eat the alias!
-        # set - $unwrapped_cmd ${@[2,-1]} 
+        # set - $unwrapped_cmd ${@[2,-1]}
     }
 
     if [[ "$interactive" ]] {
@@ -534,7 +534,7 @@ zmodload zsh/pcre
             # git next BRANCH_BASE EXTRA_PHRASE
             [[ "$2" ]] || {print -u2 "need a branch name" ; return 1}
             local phrase=("$2-next" "${3// /-}")
-            _bid-lg-cmd git checkout -b "${(@j:-:)phrase:#}"
+            -bid-lg-cmd git checkout -b "${(@j:-:)phrase:#}"
             ;;
         (fork)
             gh repo fork "${@:2}"
@@ -555,7 +555,7 @@ zmodload zsh/pcre
                 # run custom git-* commands directly
                 cmd="git-$one" ; shift
             }
-            _bid-lg-cmd $cmd "$@"
+            -bid-lg-cmd $cmd "$@"
             return $status
             ;;
     }
@@ -568,6 +568,15 @@ zmodload zsh/pcre
     setopt re_match_pcre
     zmodload zsh/pcre
 
+    local -A opts=(
+        [--dest]=${functions_source[$0]:h}/functions
+    ) \
+    bidfuncs=()\
+
+    zparseopts -A opts -D -E -K -M -- \
+        I=-inplace -inplace=inplace \
+        d:=-dest -dest:=dest \
+
     pcre_compile -m '^\(\( \$\+functions\[.*\] \)\) \|\| (?P<full>function (?P<name>.*)\(\) (?P<body>\{\n(.*\n)+?^\}))'
     local \
         MATCH \
@@ -577,9 +586,11 @@ zmodload zsh/pcre
         bounds \
         name \
         body \
+        functions_dir=${opts[--dest]} \
+        header='#!/usr/bin/env zsh' \
 
-    functions_dir=${functions_source[$0]:h}/functions
-    print "dest dir $functions_dir"
+    print -- ${+opts[--inplace]}
+    -bid-lg "dest dir $functions_dir"
     [[ -d $functions_dir ]] && rm -r $functions_dir
     mkdir -p $functions_dir
 
@@ -588,24 +599,33 @@ zmodload zsh/pcre
         bounds=($=ZPCRE_OP)
         accum+=$MATCH
         name=$match[2]
-        print "splitting $name"
-        print -r "#!/usr/bin/env zsh
-${name}() ${match[3]}
-" > "$functions_dir/$name"
-
+        bidfuncs[$name]=$match[3]
+        (( $+opts[--inplace] == 0 )) && {
+            -bid-lg "splitting $name"
+            print -- "${header}\n${name}() ${match[3]}" > $functions_dir/$name
+        }
         pcre_match -n $bounds[2] -b "$string"
     done
+
+    (( $+opts[--inplace] == 1 )) && {
+        -bid-lg "splitup inplace"
+        for name in ${(ok)bidfuncs} ; do
+            print -- "${name}"
+        done
+    }
+    -bid-lg "splitup complete"
+
     # print -l $accum
 }
-(( $+functions[_bid-lg-use-color] )) || function _bid-lg-use-color() {
+(( $+functions[-bid-lg-use-color] )) || function -bid-lg-use-color() {
     # only use color if stdout is of type tty
     # [[ -t 1 ]]
     true
 }
-(( $+functions[_bid-lg] )) || function _bid-lg() {
+(( $+functions[-bid-lg] )) || function -bid-lg() {
     { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
-    autoload -Uz -- _bid-lg-use-color
-    if ( _bid-lg-use-color ) {
+    autoload -Uz -- -bid-lg-use-color
+    if ( -bid-lg-use-color ) {
         # check if stdout is a tty
         builtin print -Pu2 "+> $@"
     } else {
@@ -616,22 +636,22 @@ ${name}() ${match[3]}
     }
     return $_rc
 }
-(( $+functions[_bid-lg-inspect] )) || function _bid-lg-inspect() {
+(( $+functions[-bid-lg-inspect] )) || function -bid-lg-inspect() {
     { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
-    (( _GIT_BY_ID_VERBOSITY >= 4 )) && _bid-lg "%F{black}inspect+> $@%f"
+    (( _GIT_BY_ID_VERBOSITY >= 4 )) && -bid-lg "%F{black}inspect+> $@%f"
     IFS="\n" && for line in $(cat -) ; do
-        _bid-lg "%F{black}inspect>> $line%f"
+        -bid-lg "%F{black}inspect>> $line%f"
         print -- "$line"
     done
     return $_rc
 }
-(( $+functions[_bid-lg-format] )) || function _bid-lg-format() {
+(( $+functions[-bid-lg-format] )) || function -bid-lg-format() {
     # $1 = level
     #   level       - long form name (trace, debug, info, warn, error)
     #   lvl         - short level name (trc, dbg, inf, wrn, err)
     #   now         - $EPOCHSECONDS
     #   file_line   - ${${funcfiletrace[2]}:t}
-    autoload -Uz -- _bid-lg
+    autoload -Uz -- -bid-lg
     local \
         level=$1 \
         lvl=$GIT_BY_ID__LOG_LEVELS[$1] \
@@ -650,45 +670,45 @@ ${name}() ${match[3]}
     msg=${msg/\%now/$EPOCHSECONDS}
     msg=${msg/\%msg/$args}
 
-    _bid-lg "${color}${msg}${GIT_BY_ID__THEME_reset}"
+    -bid-lg "${color}${msg}${GIT_BY_ID__THEME_reset}"
 }
-(( $+functions[_bid-lg-trace] )) || function _bid-lg-trace() {
+(( $+functions[-bid-lg-trace] )) || function -bid-lg-trace() {
     { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
-    autoload -Uz -- _bid-lg-format
-    (( _GIT_BY_ID_VERBOSITY >= 4 )) && _bid-lg-format trace $@
+    autoload -Uz -- -bid-lg-format
+    (( _GIT_BY_ID_VERBOSITY >= 4 )) && -bid-lg-format trace $@
     return $_rc
 }
-(( $+functions[_bid-lg-debug] )) || function _bid-lg-debug() {
+(( $+functions[-bid-lg-debug] )) || function -bid-lg-debug() {
     { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
-    autoload -Uz -- _bid-lg-format
-    (( _GIT_BY_ID_VERBOSITY >= 3 )) && _bid-lg-format debug $@
+    autoload -Uz -- -bid-lg-format
+    (( _GIT_BY_ID_VERBOSITY >= 3 )) && -bid-lg-format debug $@
     return $_rc
 }
-(( $+functions[_bid-lg-info] )) || function _bid-lg-info() {
+(( $+functions[-bid-lg-info] )) || function -bid-lg-info() {
     { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
-    autoload -Uz -- _bid-lg-format
-    (( _GIT_BY_ID_VERBOSITY >= 2 )) && _bid-lg-format info $@
+    autoload -Uz -- -bid-lg-format
+    (( _GIT_BY_ID_VERBOSITY >= 2 )) && -bid-lg-format info $@
     return $_rc
 }
-(( $+functions[_bid-lg-warn] )) || function _bid-lg-warn() {
+(( $+functions[-bid-lg-warn] )) || function -bid-lg-warn() {
     { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
-    autoload -Uz -- _bid-lg-format
-    (( _GIT_BY_ID_VERBOSITY >= 1 )) && _bid-lg-format warn $@
+    autoload -Uz -- -bid-lg-format
+    (( _GIT_BY_ID_VERBOSITY >= 1 )) && -bid-lg-format warn $@
     return $_rc
 }
-(( $+functions[_bid-lg-error] )) || function _bid-lg-error() {
+(( $+functions[-bid-lg-error] )) || function -bid-lg-error() {
     { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
-    autoload -Uz -- _bid-lg-format
-    (( _GIT_BY_ID_VERBOSITY >= 0 )) && _bid-lg-format error $@
+    autoload -Uz -- -bid-lg-format
+    (( _GIT_BY_ID_VERBOSITY >= 0 )) && -bid-lg-format error $@
     return $_rc
 }
-(( $+functions[_bid-lg-print] )) || function _bid-lg-print() {
+(( $+functions[-bid-lg-print] )) || function -bid-lg-print() {
     { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
-    autoload -Uz -- _bid-lg
-    (( _GIT_BY_ID_VERBOSITY >= -1 )) && _bid-lg %"F{white}$@%f"
+    autoload -Uz -- -bid-lg
+    (( _GIT_BY_ID_VERBOSITY >= -1 )) && -bid-lg %"F{white}$@%f"
     return $_rc
 }
-(( $+functions[_bid-lg-fixup] )) || function _bid-lg-fixup() {
+(( $+functions[-bid-lg-fixup] )) || function -bid-lg-fixup() {
     { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
     local \
         _rc=$status \
@@ -723,10 +743,10 @@ ${name}() ${match[3]}
 
     # add any extra
     [[ "$@" ]] && msg+=" ${magenta}${@}"
-    _bid-lg "$msg$reset"
+    -bid-lg "$msg$reset"
     return $_rc
 }
-(( $+functions[_bid-lg-cmd] )) || function _bid-lg-cmd() {
+(( $+functions[-bid-lg-cmd] )) || function -bid-lg-cmd() {
     # helper to log a command to stderr
     { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
     local -i verbosity=0 v1=0 v2=0
@@ -749,11 +769,11 @@ ${name}() ${match[3]}
     }
 
     if (( verbosity == 1 )) {
-        _bid-lg "%B$1%b ${@:2}"
+        -bid-lg "%B$1%b ${@:2}"
     } elif (( verbosity == 2 )) {
-        _bid-lg "%B$1%b ${(qqqq)@:2}"
+        -bid-lg "%B$1%b ${(qqqq)@:2}"
     } else {
-        _bid-lg-trace "%B$1%b ${(qqqq)@:2}"
+        -bid-lg-trace "%B$1%b ${(qqqq)@:2}"
     }
 
     "$@"
@@ -802,15 +822,15 @@ ${name}() ${match[3]}
     case "$1" {
         (t)
             if [[ "${2#t}" ]] {
-                _bid-lg-fixup green gi error t magenta "${2#t}" -\> green git magenta "${2#t}" -- "${@:3}"
+                -bid-lg-fixup green gi error t magenta "${2#t}" -\> green git magenta "${2#t}" -- "${@:3}"
                 git-bid "${2#t}" "${@:3}"
             } else {
-                _bid-lg-fixup green gi error t -\> green git -- "${@:3}"
+                -bid-lg-fixup green gi error t -\> green git -- "${@:3}"
                 git-bid "${@:3}"
             }
             ;;
         (git)
-            _bid-lg-fixup green git error git magenta -\> green git -- "${@:2}"
+            -bid-lg-fixup green git error git magenta -\> green git -- "${@:2}"
             git-bid "${@:2}"
             ;;
     }
@@ -865,7 +885,7 @@ ${name}() ${match[3]}
     )
 
     if (( ${#chosen} > 0 )) {
-        _bid-lg-cmd git ${git_cmd} $chosen
+        -bid-lg-cmd git ${git_cmd} $chosen
         local _exit_code=$status
         [[ "$git_status" ]] && git status
         return $_exit_code
@@ -935,18 +955,18 @@ ${name}() ${match[3]}
     has_master_branch="$($GIT_BY_ID__GIT_CMD branch --list master)"
     has_main_branch="$($GIT_BY_ID__GIT_CMD branch --list main)"
 
-    if (( ${GIT_BY_ID__COERSE_TO_MAIN} )) && [[ 
+    if (( ${GIT_BY_ID__COERSE_TO_MAIN} )) && [[
         "$master_index" -le ${#@}
         && -z "$has_master_branch"
         && "$has_main_branch"
     ]] {
-        _bid-lg-fixup green git red master -\> green git magenta main -- "${@[3,-1]}"
+        -bid-lg-fixup green git red master -\> green git magenta main -- "${@[3,-1]}"
         local args=("$@")
         args[$master_index]="main"
         set - $args
     }
 
-    # _bid-lg $dash_b_index
+    # -bid-lg $dash_b_index
     if (( ${GIT_BY_ID__BRANCH_NEXT_TO_NUMBER} )) && [[ $dash_b_index -le ${#@} ]] {
         # check for -b group/project-next
         (( dash_b_index++ ))
@@ -983,7 +1003,7 @@ ${name}() ${match[3]}
             local project_counter_flavor=($project $counter $flavor)
             co_branch="$group/${(j:-:)project_counter_flavor}"
 
-            _bid-lg-info "next branch: %F{magenta}$co_branch%f"
+            -bid-lg-info "next branch: %F{magenta}$co_branch%f"
 
             local args=("$@")
             args[$dash_b_index]="$co_branch"
@@ -1001,7 +1021,7 @@ ${name}() ${match[3]}
             return 0
             ;;
         ( 128 )
-            _git-bid-handle-accidental-branch "$@"
+            -git-bid-handle-accidental-branch "$@"
             co_status=$status
             ;;
     }
@@ -1012,7 +1032,7 @@ ${name}() ${match[3]}
     return $co_status
 }
 
-(( $+functions[_git-bid-handle-accidental-branch] )) || function _git-bid-handle-accidental-branch() {
+(( $+functions[-git-bid-handle-accidental-branch] )) || function -git-bid-handle-accidental-branch() {
     setopt re_match_pcre
     zmodload zsh/pcre
 
@@ -1029,7 +1049,7 @@ ${name}() ${match[3]}
         print -Pu2 -- "${(j:\n:)msg}"
         sleep $sleep_time
 
-        _bid-lg-cmd $cmd $1 "$branch"
+        -bid-lg-cmd $cmd $1 "$branch"
         return $status
     } elif (( ${GIT_BY_ID__AUTOCORRECT_COMMIT_OOPS_BRANCH} )) && [[ "$result" =~ "fatal: '\[(.*)\] (.*)' is not a valid branch name" ]] {
         local \
@@ -1062,9 +1082,9 @@ ${name}() ${match[3]}
     print -Pu2 -- "${(j:\n:)msg}"
     sleep $sleep_time
 
-    _bid-lg-cmd git-bid checkout -b "$new_branch" \
+    -bid-lg-cmd git-bid checkout -b "$new_branch" \
         && print -s -- "${GIT_BY_ID__GIT} commit -am \"$commit_msg\"" \
-        && _bid-lg-cmd git-bid commit -am "$commit_msg"
+        && -bid-lg-cmd git-bid commit -am "$commit_msg"
 
     return $status
 }
@@ -1102,10 +1122,10 @@ ${name}() ${match[3]}
     # Numbered shortcut variables are produced by various commands, such as:
     # * git_status_shortcuts()    - git status implementation
     # * git_show_affected_files() - shows files affected by a given SHA1, etc.
-    
+
     setopt re_match_pcre
     zmodload zsh/pcre
-    
+
     # Check for --relative param
     local \
         branch \
@@ -1131,44 +1151,44 @@ ${name}() ${match[3]}
         if (( !GIT_IDS_COUNT && !doublechecked++ )) {
             # (this can happen if git is being run in a subshell)
             [[ "$branch" ]] && cmd=git-bid-number-branch || cmd=git-bid-number
-            _bid-lg-debug "running '${args[@]}' with no GIT_IDS_COUNT, checking for '$cmd'"
+            -bid-lg-debug "running '${args[@]}' with no GIT_IDS_COUNT, checking for '$cmd'"
             $cmd
         }
 
         (( $+GIT_IDS[$1] )) || {
-            _bid-lg-error "id [$1] hasn't been set yet"
+            -bid-lg-error "id [$1] hasn't been set yet"
             return 1
         }
-        
+
         local p="${GIT_IDS[$1]}"
         [[ $relative ]] && p=${p#$PWD/}
         if \
             (( $+GIT_IDS_UNMERGED[$1] )) \
             || [[ "$skip_p_check" || "$branch" ]] \
         {
-            _bid-lg-trace "skiping the p check"
+            -bid-lg-trace "skiping the p check"
             # just keep going, the branch/file doesn't need to exist or is known to be unmerged
         } elif [[ "$p" && ! -e "$p" ]] {
             # check if $p is a branch
             if ( $GIT_BY_ID__GIT_CMD rev-parse --quiet --verify "$p" >/dev/null ) {
-                _bid-lg-trace "'$p' is a branch"
+                -bid-lg-trace "'$p' is a branch"
             } else {
-                _bid-lg-error "'$p' doesn't seem to exist"
+                -bid-lg-error "'$p' doesn't seem to exist"
                 return 1
             }
         }
 
         if (( ${GIT_BY_ID__LOG_EXPANSIONS} )) {
-            _bid-lg-fixup replace_left $1 -\> replace_right $p
+            -bid-lg-fixup replace_left $1 -\> replace_right $p
         } else {
-            _bid-lg-trace "[$1] -> $p"
+            -bid-lg-trace "[$1] -> $p"
         }
         args+="$p"
     }
 
     setopt re_match_pcre
     for arg in "$@"; do
-        _bid-lg-trace "arg: ${(qqqq)arg}"
+        -bid-lg-trace "arg: ${(qqqq)arg}"
         if [[ "$arg" =~ ^[0-9]{1,4}$ ]] {
             # Substitute $e{*} variables for any integers
             if [[ -e "$arg" ]] {
@@ -1189,12 +1209,12 @@ ${name}() ${match[3]}
         }
     done
 
-    _bid-lg-trace "expanded args to: ${(qqqq@)args}"
+    -bid-lg-trace "expanded args to: ${(qqqq@)args}"
     if [[ "$execute" && "$interactive" ]] && (( $+functions[git-bid-fzf-${@[2]}] )) {
-        _bid-lg-cmd git-bid-fzf-${@[2]} "${(@)args}"
+        -bid-lg-cmd git-bid-fzf-${@[2]} "${(@)args}"
     } elif [[ "$execute" ]] {
         # "${(@)var}" to not re-parse spaces
-        _bid-lg-cmd "${(@)args}"
+        -bid-lg-cmd "${(@)args}"
         return $status
     } else {
         print -- "$args"
@@ -1225,7 +1245,7 @@ ${name}() ${match[3]}
             print -P -- "${match[1]}${GIT_BY_ID__THEME_ob}${GIT_BY_ID__THEME_id}$((++i))${GIT_BY_ID__THEME_cb} ${match[2]}"
             # print -P $(git log --oneline master..$branch | tail -1)
         } else {
-            _bid-lg-error "no match '$line'"
+            -bid-lg-error "no match '$line'"
         }
     }
 
@@ -1311,15 +1331,15 @@ ${name}() ${match[3]}
             local match_names=( lpad line_color kind colon rpad found_file ) i=0
             for (( i=1 ; i <= ${#match_names} ; i++ )) ; {
                 local "${match_names[i]}"="$match[$i]"
-                _bid-lg-trace "[$i] ${match_names[i]}=$match[$i]"
+                -bid-lg-trace "[$i] ${match_names[i]}=$match[$i]"
             }
-            [[ "$line_color" ]] && _bid-lg-trace "$kind found a color => ${(q)line_color}' ${line_color}◘%f"
+            [[ "$line_color" ]] && -bid-lg-trace "$kind found a color => ${(q)line_color}' ${line_color}◘%f"
             case "$kind" {
                 (deleted*)         kind="${_del}$line_color$kind" ;;
                 (new*)            kind="${_new}$line_color$kind" ;;
                 (both modified)   kind="${_both}$kind" ;;
                 (modified)        kind="${_mod}$line_color$kind" ;;
-                (*)               kind="?$line_color$kind" ; _bid-lg-warn "plz handle '$kind'" ;;
+                (*)               kind="?$line_color$kind" ; -bid-lg-warn "plz handle '$kind'" ;;
             }
             : $(( ++GIT_IDS_COUNT ))
             local id_pad="__id_pad_${#GIT_IDS_COUNT}"  # add padding to the number based on how many files we have seen
