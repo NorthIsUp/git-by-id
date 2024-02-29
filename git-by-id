@@ -146,6 +146,7 @@ zmodload zsh/pcre
         'git-new=%F{green}%B+%b'
         'git-both=%F{magenta}%B~%b%F{red}'
         'git-mod=%F{yellow}+'
+        'git-renamed=%F{yellow}~'
 
         # characters
         'ob=%F{black}['     # open bracket
@@ -1313,6 +1314,7 @@ zmodload zsh/pcre
         _new="${GIT_BY_ID__THEME_git_new}" \
         _both="${GIT_BY_ID__THEME_git_both}" \
         _mod="${GIT_BY_ID__THEME_git_mod}" \
+        _ren="${GIT_BY_ID__THEME_git_renamed}" \
 
     local ansi='\033\[[[:digit:]|;]*m'
     for line in "${(@)git_status}" ; {
@@ -1339,7 +1341,8 @@ zmodload zsh/pcre
                 (new*)            kind="${_new}$line_color$kind" ;;
                 (both modified)   kind="${_both}$kind" ;;
                 (modified)        kind="${_mod}$line_color$kind" ;;
-                (*)               kind="?$line_color$kind" ; -bid-lg-warn "plz handle '$kind'" ;;
+                (renamed)         kind="${_ren}$line_color$kind" ;;
+                (*)               kind="$line_color$kind" ; -bid-lg-warn "plz handle: $kind" ;;
             }
             : $(( ++GIT_IDS_COUNT ))
             local id_pad="__id_pad_${#GIT_IDS_COUNT}"  # add padding to the number based on how many files we have seen
