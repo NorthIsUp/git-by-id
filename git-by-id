@@ -3,6 +3,7 @@
 # code: language=zsh
 setopt re_match_pcre
 zmodload zsh/pcre
+
 # ---------------------------------------------------------------------------- #
 #                                   Git By Id                                  #
 # ---------------------------------------------------------------------------- #
@@ -533,7 +534,9 @@ zmodload zsh/pcre
             ;;
         (next)
             # git next BRANCH_BASE EXTRA_PHRASE
-            [[ "$2" ]] || {print -u2 "need a branch name" ; return 1}
+            [[ "$2" ]] || {
+                print -u2 "need a branch name" ; return 1
+            }
             local phrase=("$2-next" "${3// /-}")
             -bid-lg-cmd git checkout -b "${(@j:-:)phrase:#}"
             ;;
