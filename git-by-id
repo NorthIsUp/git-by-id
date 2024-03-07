@@ -15,9 +15,9 @@ zmodload zsh/pcre
     if (( ! $+GIT_BY_ID__SETUP_COMPLETE )) {
         autoload -Uz -- git-bid-setup
         git-bid-setup && {
-            print -u2 "setup success"
+            print -u2 "+> git-by-id setup success"
         } || {
-            print -u2 "setup failed"
+            print -u2 "+> git-by-id setup failed"
             return 1
         }
     }
@@ -204,7 +204,7 @@ zmodload zsh/pcre
             }
 
         } else {
-            print -u2 "'$segment' is an invalid theme option"
+            print -u2 "+> '$segment' is an invalid theme option"
         }
     }
 
@@ -276,7 +276,7 @@ zmodload zsh/pcre
             ${(k)functions[(I)-bid-*]}
         )
     autoload -Uz -- $bid_funcs $bid_util_funcs
-    print -u2 "git-by-id: setup complete at ${GIT_BY_ID__SETUP_COMPLETE}"
+    print -u2 "+> git-by-id: setup complete at ${GIT_BY_ID__SETUP_COMPLETE}"
 }
 
 # -------------------------------- entrypoints ------------------------------- #
@@ -316,15 +316,24 @@ zmodload zsh/pcre
         --error)    _GIT_BY_ID_VERBOSITY=0 ;;
         --silent)   _GIT_BY_ID_VERBOSITY=-1 ;;
     }
+
     -bid-lg-trace "git-bid-entrypoint at: $start_time"
     -bid-lg-trace "git-bid-setup at: ${GIT_BY_ID__SETUP_COMPLETE}"
     -bid-lg-debug "verbosity set to: '${flag_level#--*}' $_GIT_BY_ID_VERBOSITY"
 
+    # re-add any arguments that git uses
+    local -U valid_git_args=($flag_v)
+    if (( $flag_v[(I)--verbose] )) {
+        valid_git_args+=(--verbose)
+    } elif (( $flag_v[(I)-v] )) {
+        valid_git_args+=(-v)
+    }
 
     # run the function like normal!
     export LINES
+
     # run git-bid
-    git-bid "$@"
+    git-bid "$@" $valid_git_args
     -bid-lg-trace "status: $status"
     -bid-lg-trace "total time in git-bid: $(( $EPOCHREALTIME - $start_time ))"
     return $status
@@ -535,7 +544,7 @@ zmodload zsh/pcre
         (next)
             # git next BRANCH_BASE EXTRA_PHRASE
             [[ "$2" ]] || {
-                print -u2 "need a branch name" ; return 1
+                print -u2 "+> need a branch name" ; return 1
             }
             local phrase=("$2-next" "${3// /-}")
             -bid-lg-cmd git checkout -b "${(@j:-:)phrase:#}"
@@ -633,7 +642,7 @@ zmodload zsh/pcre
         # check if stdout is a tty
         builtin print -Pu2 "+> $@"
     } else {
-        print -u2 'no color'
+        print -u2 '+> no color'
         builtin print -P "+> $@" | \
             sed -r "s/[[:cntrl:]]\[[0-9]{1,3}m//g" \
             >&2
@@ -1080,15 +1089,15 @@ zmodload zsh/pcre
     msg=(
         "${GIT_BY_ID__THEME_warn}WARNING%f: You tried to use a commit message for a branch name."
         "Continuing in $sleep_time seconds assuming that you meant..."
-        "    %F{green}git %F{magenta}checkout -b %F{white}\"%F{yellow}$new_branch%F{white}\"%f"
-        "    %F{green}git %F{magenta}commit -am %F{white}\"%F{yellow}$commit_msg%F{white}\"%f"
+        "    %F{green}git %F{magenta}checkout --branch %F{white}\"%F{yellow}$new_branch%F{white}\"%f"
+        "    %F{green}git %F{magenta}commit --all --message %F{white}\"%F{yellow}$commit_msg%F{white}\"%f"
     )
     print -Pu2 -- "${(j:\n:)msg}"
     sleep $sleep_time
 
-    -bid-lg-cmd git-bid checkout -b "$new_branch" \
-        && print -s -- "${GIT_BY_ID__GIT} commit -am \"$commit_msg\"" \
-        && -bid-lg-cmd git-bid commit -am "$commit_msg"
+    -bid-lg-cmd git-bid checkout --branch "$new_branch" \
+        && print -s -- "${GIT_BY_ID__GIT} commit --all --message \"$commit_msg\"" \
+        && -bid-lg-cmd git-bid commit --verbose --all --message "$commit_msg"
 
     return $status
 }
