@@ -15,9 +15,9 @@ zmodload zsh/pcre
     if (( ! $+GIT_BY_ID__SETUP_COMPLETE )) {
         autoload -Uz -- git-bid-setup
         git-bid-setup && {
-            print -u2 "+> git-by-id setup success"
+            print -Pu2 "+> %F{magenta}git-by-id%f: setup %F{green}success%f"
         } || {
-            print -u2 "+> git-by-id setup failed"
+            print -Pu2 "+> %F{magenta}git-by-id%f: setup %F{red}failed%f"
             return 1
         }
     }
@@ -39,6 +39,8 @@ zmodload zsh/pcre
 
 # ------------------------------- git-bid-setup ------------------------------ #
 (( $+functions[git-bid-setup] )) || function git-bid-setup() {
+    -bid-lg-trace "running 'git-bid-setup' with @: ${(qqqq)@}"
+
     setopt re_match_pcre
     zmodload zsh/pcre
 
@@ -120,6 +122,9 @@ zmodload zsh/pcre
     # Defalt options to add to all fzf calls
     : "${GIT_BY_ID__FZF_DEFAULT_OPTS:=}"
 
+    # Default max number of branches before falling back to plain git
+    : "${GIT_BY_ID__BRANCH_LIMIT:=300}"
+
     # prefix for log lines
     #
     #   level       - long form name (trace, debug, info, warn, error)
@@ -137,6 +142,13 @@ zmodload zsh/pcre
         [info]=inf
         [warn]=wrn
         [error]=err
+        )
+    typeset -Ag GIT_BY_ID__LOG_VALUES=(
+        [trace]=4
+        [debug]=3
+        [info]=2
+        [warn]=1
+        [error]=0
     )
 
     # setup the theme
@@ -276,14 +288,16 @@ zmodload zsh/pcre
             ${(k)functions[(I)-bid-*]}
         )
     autoload -Uz -- $bid_funcs $bid_util_funcs
-    print -u2 "+> git-by-id: setup complete at ${GIT_BY_ID__SETUP_COMPLETE}"
+    print -Pu2 "+> %F{magenta}git-by-id%f: setup complete at %F{green}${GIT_BY_ID__SETUP_COMPLETE}%f"
 }
 
 # -------------------------------- entrypoints ------------------------------- #
 (( $+functions[git-bid-entrypoint] )) || function git-bid-entrypoint() {
+    -bid-lg-trace "running 'git-bid-entrypoint' with @: ${(qqqq)@}"
+
     # git <git-bid-options> COMMAND <git-options>
     # this zparseopts only parses out options before the git command/alias (hence no -E)
-    local flag_v flag_q flag_level start_time=$EPOCHREALTIME
+    local flag_v flag_q flag_level start_time=$EPOCHREALTIME masked_args=()
     # these opts are removed from $@ for Git
     # TODO: correctly handle passing --verbose and --quiet
     zparseopts -D -E -- \
@@ -309,11 +323,11 @@ zmodload zsh/pcre
     esac
     [[ "$flag_v" || "$flag_q" ]] && (( _GIT_BY_ID_VERBOSITY = $#flag_v - $#flag_q ))
     [[ "$flag_level" ]] && case "${flag_level[1]}" {
-        --trace)    _GIT_BY_ID_VERBOSITY=4 ;;
-        --debug)    _GIT_BY_ID_VERBOSITY=3 ;;
-        --info)     _GIT_BY_ID_VERBOSITY=2 ;;
-        --warn)     _GIT_BY_ID_VERBOSITY=1 ;;
-        --error)    _GIT_BY_ID_VERBOSITY=0 ;;
+        --trace)    _GIT_BY_ID_VERBOSITY=$GIT_BY_ID__LOG_VALUES[trace] ;;
+        --debug)    _GIT_BY_ID_VERBOSITY=$GIT_BY_ID__LOG_VALUES[debug] ;;
+        --info)     _GIT_BY_ID_VERBOSITY=$GIT_BY_ID__LOG_VALUES[info] ;;
+        --warn)     _GIT_BY_ID_VERBOSITY=$GIT_BY_ID__LOG_VALUES[warn] ;;
+        --error)    _GIT_BY_ID_VERBOSITY=$GIT_BY_ID__LOG_VALUES[error] ;;
         --silent)   _GIT_BY_ID_VERBOSITY=-1 ;;
     }
 
@@ -340,6 +354,8 @@ zmodload zsh/pcre
 }
 
 (( $+functions[git-bid-refunc] )) || function git-bid-refunc() {
+    -bid-lg-trace "running 'git-bid-refunc' with @: ${(qqqq)@}"
+
     setopt re_match_pcre
     zmodload zsh/pcre
 
@@ -402,6 +418,7 @@ zmodload zsh/pcre
             ${(k)functions[(I)-git-by-id]}
             ${(k)functions[(I)git-bid]}
             ${(k)functions[(I)git-bid-*]}
+            ${(k)functions[(I)-git-bid-*]}
         ) \
         bid_util_funcs=(
             ${(k)functions[(I)-bid-*]}
@@ -456,6 +473,8 @@ zmodload zsh/pcre
 #                                   Git By Id                                  #
 # ---------------------------------------------------------------------------- #
 (( $+functions[git-bid] )) || function git-bid() {
+    -bid-lg-trace "running 'git-bid' with @: ${(qqqq)@}"
+
     (( ${__line_trace__:-0} )) && set -x || set +x  # turn on full tracing of the git command
     -bid-lg-trace "git-bid ${(qqqq)@}"
 
@@ -577,6 +596,8 @@ zmodload zsh/pcre
 
 # ----------------------------------- utils ---------------------------------- #
 (( $+functions[git-bid-splitup] )) || function git-bid-splitup() {
+    -bid-lg-trace "running 'git-bid-splitup' with @: ${(qqqq)@}"
+
     # split up this file into several function files
     setopt re_match_pcre
     zmodload zsh/pcre
@@ -685,36 +706,17 @@ zmodload zsh/pcre
 
     -bid-lg "${color}${msg}${GIT_BY_ID__THEME_reset}"
 }
-(( $+functions[-bid-lg-trace] )) || function -bid-lg-trace() {
+
+for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_level}] )) || function -bid-lg-${_log_level}() {
     { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
-    autoload -Uz -- -bid-lg-format
-    (( _GIT_BY_ID_VERBOSITY >= 4 )) && -bid-lg-format trace $@
+    local level_name=${0##*-}  # get the level from the function name
+    (( _GIT_BY_ID_VERBOSITY >= ${GIT_BY_ID__LOG_VALUES[$level_name]:-5} )) && {
+        autoload -Uz -- -bid-lg-format
+        -bid-lg-format $level_name $@
+    }
     return $_rc
 }
-(( $+functions[-bid-lg-debug] )) || function -bid-lg-debug() {
-    { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
-    autoload -Uz -- -bid-lg-format
-    (( _GIT_BY_ID_VERBOSITY >= 3 )) && -bid-lg-format debug $@
-    return $_rc
-}
-(( $+functions[-bid-lg-info] )) || function -bid-lg-info() {
-    { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
-    autoload -Uz -- -bid-lg-format
-    (( _GIT_BY_ID_VERBOSITY >= 2 )) && -bid-lg-format info $@
-    return $_rc
-}
-(( $+functions[-bid-lg-warn] )) || function -bid-lg-warn() {
-    { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
-    autoload -Uz -- -bid-lg-format
-    (( _GIT_BY_ID_VERBOSITY >= 1 )) && -bid-lg-format warn $@
-    return $_rc
-}
-(( $+functions[-bid-lg-error] )) || function -bid-lg-error() {
-    { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
-    autoload -Uz -- -bid-lg-format
-    (( _GIT_BY_ID_VERBOSITY >= 0 )) && -bid-lg-format error $@
-    return $_rc
-}
+
 (( $+functions[-bid-lg-print] )) || function -bid-lg-print() {
     { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
     autoload -Uz -- -bid-lg
@@ -794,6 +796,8 @@ zmodload zsh/pcre
 
 # ----------------------------- helper funcitons ----------------------------- #
 (( $+functions[git-bid-config] )) || function git-bid-config() {
+    -bid-lg-trace "running 'git-bid-config' with @: ${(qqqq)@}"
+
     local config_result="$(${GIT_BY_ID__GIT} config $@ 2>/dev/null)"
     if (( $status == 0 )) && [[ "$config_result" ]] {
         print "$config_result"
@@ -803,6 +807,8 @@ zmodload zsh/pcre
 }
 
 (( $+functions[git-bid-shell-usage] )) || function git-bid-shell-usage() {
+    -bid-lg-trace "running 'git-bid-shell-usage' with @: ${(qqqq)@}"
+
     # Setup for shell
     cat <<- EOF
 	# add the following to an init script
@@ -813,6 +819,8 @@ zmodload zsh/pcre
 
 
 (( $+functions[git-bid-clean-vars] )) || function git-bid-clean-vars() {
+    -bid-lg-trace "running 'git-bid-clean-vars' with @: ${(qqqq)@}"
+
     # reset the vairables used in each run
     typeset -g \
         GIT_IDS_COUNT=0 \
@@ -831,6 +839,8 @@ zmodload zsh/pcre
 
 # ------------------------------- git-bid-tgit ------------------------------- #
 (( $+functions[git-bid-tgit] )) || function git-bid-tgit() {
+    -bid-lg-trace "running 'git-bid-tgit' with @: ${(qqqq)@}"
+
     # handle `gi t` and `git git`
     case "$1" {
         (t)
@@ -851,6 +861,8 @@ zmodload zsh/pcre
 
 # -------------------------------- git-bid-fzf ------------------------------- #
 (( $+functions[git-bid-fzf-handle-status-files] )) || function git-bid-fzf-handle-status-files() {
+    -bid-lg-trace "running 'git-bid-fzf-handle-status-files' with @: ${(qqqq)@}"
+
     zparseopts -D -E \
         -fzf-git-cmd:=git_cmd \
         -fzf-success-msg:=success_msg \
@@ -910,6 +922,8 @@ zmodload zsh/pcre
 
 # ------------------------------ git-bid-fzf-add ----------------------------- #
 (( $+functions[git-bid-fzf-add] )) || function git-bid-fzf-add() {
+    -bid-lg-trace "running 'git-bid-fzf-add' with @: ${(qqqq)@}"
+
     git-bid-fzf-handle-status-files \
         --fzf-git-cmd add \
         --fzf-empty-msg "Nothing added." \
@@ -917,6 +931,8 @@ zmodload zsh/pcre
 }
 
 (( $+functions[git-bid-fzf-reset] )) || function git-bid-fzf-reset() {
+    -bid-lg-trace "running 'git-bid-fzf-reset' with @: ${(qqqq)@}"
+
     git-bid-fzf-handle-status-files \
         --fzf-git-cmd reset \
         --fzf-empty-msg "Nothing was reset." \
@@ -924,6 +940,8 @@ zmodload zsh/pcre
 }
 
 (( $+functions[git-bid-fzf-checkout] )) || function git-bid-fzf-checkout() {
+    -bid-lg-trace "running 'git-bid-fzf-checkout' with @: ${(qqqq)@}"
+
     git-bid-fzf-handle-status-files \
         --fzf-git-cmd checkout \
         --fzf-empty-msg "Nothing was checked out." \
@@ -931,6 +949,8 @@ zmodload zsh/pcre
 }
 
 (( $+functions[git-bid-fzf-branch] )) || function git-bid-fzf-branch() {
+    -bid-lg-trace "running 'git-bid-fzf-branch' with @: ${(qqqq)@}"
+
     git-bid-fzf-handle-porcelain \
         --bid-list-command branch \
         --bid-list-args '-vv --all' \
@@ -942,6 +962,8 @@ zmodload zsh/pcre
 
 # ------------------------------ git-bid-stash ------------------------------ #
 (( $+functions[git-bid-stash] )) || function git-bid-stash() {
+    -bid-lg-trace "running 'git-bid-stash' with @: ${(qqqq)@}"
+
     if [[ $1 == stash && $2 == pop ]] {
         # handle stah pop -> git stash pop --quiet &&
         $cmd "$@" --quiet
@@ -956,6 +978,8 @@ zmodload zsh/pcre
 
 # ----------------------------- git-bid-checkout ----------------------------- #
 (( $+functions[git-bid-checkout] )) || function git-bid-checkout() {
+    -bid-lg-trace "running 'git-bid-checkout' with @: ${(qqqq)@}"
+
     setopt re_match_pcre
     zmodload zsh/pcre
 
@@ -1104,6 +1128,8 @@ zmodload zsh/pcre
 
 # ------------------------------- git-bid-push ------------------------------- #
 (( $+functions[git-bid-push] )) || function git-bid-push() {
+    -bid-lg-trace "running 'git-bid-push' with @: ${(qqqq)@}"
+
     setopt re_match_pcre
     zmodload zsh/pcre
 
@@ -1130,6 +1156,8 @@ zmodload zsh/pcre
 
 # ------------------------------- number expand ------------------------------ #
 (( $+functions[git-bid-number-expand] )) || function git-bid-number-expand() {
+    -bid-lg-trace "running 'git-bid-number-expand' with @: ${(qqqq)@}"
+
     # Allows expansion of numbered shortcuts, ranges of shortcuts, or standard paths.
     # Return a string which can be `eval`ed like: eval args="$(scmb_expand_args "$@")"
     # Numbered shortcut variables are produced by various commands, such as:
@@ -1237,34 +1265,10 @@ zmodload zsh/pcre
 }
 
 # ------------------------------- number branch ------------------------------ #
-(( $+functions[git-bid-number-branch] )) || function git-bid-number-branch() {
-    setopt re_match_pcre
-    zmodload zsh/pcre
-    git-bid-clean-vars
-    GIT_IDS_COUNT=0
-
-    # Fall back to normal git branch, if any unknown args given
-    if (( $(${GIT_BY_ID__GIT} branch | wc -l) > 300 )) || [[ -n "$@" && "$@" != "-a" ]]; then
-        git-bid-number-expand --byid-execute ${GIT_BY_ID__GIT} branch "$@"
-        return $status
-    fi
-
-    #TODO add info about commit message: git log master..$branch --oneline | tail -1
-    local branches branch= i=0
-    branches=( ${(f)"$(${GIT_BY_ID__GIT} branch --color=always ${@})"} )
-    for line in ${branches} ; {
-        if [[ "$line" =~ "^([ *]{2})(.*)" ]] {
-            branch="${match[2]}"
-            print -P -- "${match[1]}${GIT_BY_ID__THEME_ob}${GIT_BY_ID__THEME_id}$((++i))${GIT_BY_ID__THEME_cb} ${match[2]}"
-            # print -P $(git log --oneline master..$branch | tail -1)
-        } else {
-            -bid-lg-error "no match '$line'"
-        }
-    }
-
-
-    # Set numbered file shortcut in variable
-    for branch in $(IFS=$'\n' ${GIT_BY_ID__GIT} branch "$@" | sed "s/^[* ]\{2\}//"); do
+(( $+functions[-git-bid-number-branches] )) || function -git-bid-number-branches() {
+    -bid-lg-trace "running '-git-bid-number-branches' with @: ${(qqqq)@}"
+    # Set numbered file shortcut in variable using
+    for branch in $(IFS=$'\n' ${GIT_BY_ID__GIT} branch --color=never "$@" | sed "s/^[* ]\{2\}//"); do
         (( GIT_IDS_COUNT++ && GIT_BY_ID__SET_ID_VARS && GIT_BY_ID__SET_ID_VARS )) \
             && export $GIT_BY_ID__PREFIX_VAR$GIT_IDS_COUNT="$branch"
         GIT_IDS+=([$GIT_IDS_COUNT]="$branch")
@@ -1272,8 +1276,57 @@ zmodload zsh/pcre
     done
 }
 
+(( $+functions[-git-bid-print-branches] )) || function -git-bid-print-branches() {
+    -bid-lg-trace "running '-git-bid-print-branches' with @: ${(qqqq)@}"
+    local branches=( ${(f)"$(${GIT_BY_ID__GIT} branch --color=always $@)"} )
+    local pad="${#${#branches}}" output=()
+
+    for line in ${branches} ; {
+        if [[ "$line" =~ "^([ *]{2})(.*)" ]] {
+            output+=("${match[1]}${GIT_BY_ID__THEME_ob}${GIT_BY_ID__THEME_id}${(r:$pad:: :)$((++i))}${GIT_BY_ID__THEME_cb} ${match[2]}")
+        } else {
+            -bid-lg-error "no match '$line'"
+        }
+    }
+
+    print -P -- "${(j:\n:)output}"
+}
+(( $+functions[git-bid-number-branch] )) || function git-bid-number-branch() {
+    -bid-lg-trace "running 'git-bid-number-branch' with @: ${(qqqq)@}"
+
+    setopt re_match_pcre
+    zmodload zsh/pcre
+    # git-bid-clean-vars
+
+    local branches branch= i=0
+
+    (( ${#@} == 0 || ${@[(I)-a]} || ${@[(I)-r]} )) && {
+        -git-bid-print-branches $@ && -git-bid-number-branches $@
+        return $status
+    }
+
+    # branches=( ${(f)"$(${GIT_BY_ID__GIT} branch --color=never ${@})"} )
+    -bid-lg-trace "GIT_IDS_COUNT: $GIT_IDS_COUNT"
+    -bid-lg-trace "branch count: ${#branches}"
+
+    # if (( $#branches > GIT_BY_ID__BRANCH_LIMIT )) ; then
+    #     -bid-lg-info "too many branches (${#branches} > $GIT_BY_ID__BRANCH_LIMIT), falling back to normal git branch"
+    #     git-bid-number-expand --byid-execute ${GIT_BY_ID__GIT} branch "$@"
+    #     return $status
+    # fi
+
+    # Fall back to normal git branch if...
+    git-bid-number-expand --byid-execute ${GIT_BY_ID__GIT} branch "$@"
+    # if [[ "$@" && "$@" != *(-a|-D)* ]] ; then # if any unknown args given
+    #     git-bid-number-expand --byid-execute ${GIT_BY_ID__GIT} branch "$@"
+    #     return $status
+    # fi
+}
+
 # ---------------------------------- number ---------------------------------- #
 (( $+functions[git-bid-number] )) || function git-bid-number() {
+    -bid-lg-trace "running 'git-bid-number' with @: ${(qqqq)@}"
+
     # Git status --porcelain output
     # X          Y     Meaning
     # -------------------------------------------------
@@ -1308,13 +1361,15 @@ zmodload zsh/pcre
         grouping \
         line section \
         output=() \
-        quiet
+        quiet \
+        id_pad
 
     git-bid-clean-vars
 
     zparseopts -E -D -- q=quiet -quiet=quiet
 
     git_status=( "${(f@)$($GIT_BY_ID__GIT_CMD $git_args status "$@")}" )
+    id_pad="${#${#git_status}}"
     GIT_IDS_COUNT=0
 
     # local ob="${fg[black]}[$reset_color" cb="${fg[black]}]$reset_color"
@@ -1357,8 +1412,7 @@ zmodload zsh/pcre
                 (*)               kind="$line_color$kind" ; -bid-lg-warn "plz handle: $kind" ;;
             }
             : $(( ++GIT_IDS_COUNT ))
-            local id_pad="__id_pad_${#GIT_IDS_COUNT}"  # add padding to the number based on how many files we have seen
-            line="$lpad$_ob$_id$GIT_IDS_COUNT$_cb$id_pad $kind$colon$line_color$rpad$found_file"
+            line="$lpad$_ob$_id${(r:$id_pad:: :)GIT_IDS_COUNT}$_cb $kind$colon$line_color$rpad$found_file"
         } elif [[ "$line" =~ "(\t)(.*)" ]] {
             local lpad="$match[1]" found_file="$match[2]"
             line="$lpad$_ob$_id$(( ++GIT_IDS_COUNT ))$_cb $found_file"
@@ -1378,12 +1432,6 @@ zmodload zsh/pcre
     if [[ ! "$quiet" && "$output" ]] {
         # escape ` in output, print -P was interpreting them
         output="${(j:\n:)output:gs/\`/\\\\\`/}\n"
-        (( GIT_IDS_COUNT >= 10 )) && output=${output//__id_pad_1/__id_pad_2 }
-        (( GIT_IDS_COUNT >= 100 )) && output=${output//__id_pad_2/__id_pad_3 }
-        (( GIT_IDS_COUNT >= 1000 )) && output=${output//__id_pad_3/__id_pad_4 }
-        (( GIT_IDS_COUNT >= 10000 )) && output=${output//__id_pad_4/ }
-        output=${output//__id_pad_[0-9]/}
-
         print -nP -- "${output}"
     }
     return $(( !GIT_IDS_COUNT ))
