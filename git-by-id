@@ -784,9 +784,9 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     }
 
     if (( verbosity == 1 )) {
-        -bid-lg "%B$1%b ${@:2}"
+        -bid-lg "%B$1%b ${(q+)@:2}"
     } elif (( verbosity == 2 )) {
-        -bid-lg "%B$1%b ${(qqqq)@:2}"
+        -bid-lg "%B$1%b ${(qqq)@:2}"
     } else {
         -bid-lg-trace "%B$1%b ${(qqqq)@:2}"
     }
@@ -1113,13 +1113,13 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     msg=(
         "${GIT_BY_ID__THEME_warn}WARNING%f: You tried to use a commit message for a branch name."
         "Continuing in $sleep_time seconds assuming that you meant..."
-        "    %F{green}git %F{magenta}checkout --branch %F{white}\"%F{yellow}$new_branch%F{white}\"%f"
+        "    %F{green}git %F{magenta}branch %F{white}\"%F{yellow}$new_branch%F{white}\"%f"
         "    %F{green}git %F{magenta}commit --all --message %F{white}\"%F{yellow}$commit_msg%F{white}\"%f"
     )
     print -Pu2 -- "${(j:\n:)msg}"
     sleep $sleep_time
 
-    -bid-lg-cmd git-bid checkout --branch "$new_branch" \
+    -bid-lg-cmd git-bid branch "$new_branch" \
         && print -s -- "${GIT_BY_ID__GIT} commit --all --message \"$commit_msg\"" \
         && -bid-lg-cmd git-bid commit --verbose --all --message "$commit_msg"
 
