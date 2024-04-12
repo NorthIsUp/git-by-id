@@ -1091,14 +1091,14 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     } elif (( ${GIT_BY_ID__AUTOCORRECT_COMMIT_OOPS_BRANCH} )) && [[ "$result" =~ "fatal: '\[(.*)\] (.*)' is not a valid branch name" ]] {
         local \
             message="[${match[1]}] ${match[2]}" \
-            new_branch="${match[1]:gs/ /_/}/next-${match[2]:gs/ /-/}" \
+            new_branch="${match[1]//[^[:alnum:]]/_}/next-${match[2]//[^[:alnum:]]/-}" \
             commit_msg="[${match[1]}] ${match[2]}" \
             sleep_time=$(printf '%.1f' $(($(git-bid-config help.autocorrect) / 10.0)) )
 
     } elif (( ${GIT_BY_ID__AUTOCORRECT_COMMIT_OOPS_BRANCH} )) && [[ "$result" =~ "fatal: '(.*)' is not a valid branch name" ]] {
         local \
             message="${match[1]}" \
-            new_branch="${match[1]:gs/ /_/}-next" \
+            new_branch="${match[1]//[^[:alnum:]]/_}-next" \
             commit_msg="${match[1]}" \
             sleep_time=$(printf '%.1f' $(($(git-bid-config help.autocorrect) / 10.0)) )
     } else {
