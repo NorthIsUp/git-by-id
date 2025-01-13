@@ -171,25 +171,26 @@ zmodload zsh/pcre
         'arrow_phat=%F{magenta}  ==> %F{yellow}' # the arrow
 
         # colors by what they do
-        'id=%F{white}'      # ids/nubmers
-        'path=%F{white}'    # paths
+        'id=%F{default}'      # ids/nubmers
+        'path=%F{default}'    # paths
         'arrow=%F{magenta}' # arrow color
         'ok=%F{green}'      # good
         'warn=%F{#FFA500}'  # bad
         'error=%F{red}'     # ugly
         'replace_left=%F{magenta}'  # text that is being changed
         'replace_right=%F{green}'   # what text is being changed to
-        'replace_white=%F{white}'   # what goes arround and inbetween
+        'replace_white=%F{default}'   # what goes arround and inbetween
 
         #log colors
         '-bid-lg-trace=%F{#5A5A5A}'
         '-bid-lg-debug=%F{#5A5A5A}'
-        '-bid-lg-info=%F{white}'
+        '-bid-lg-info=%F{default}'
         '-bid-lg-warn=%F{#FFA500}'
         '-bid-lg-error=%F{red}%B'
         '-bid-lg-reset=%f%b'
 
         # colors by name
+        'default=%F{default}'
         'black=%F{black}'
         'red=%F{red}'
         'green=%F{green}'
@@ -375,12 +376,12 @@ zmodload zsh/pcre
         arrow=$GIT_BY_ID__THEME_arrow_full \
         pharrow=$GIT_BY_ID__THEME_arrow_phat \
         yellow=$GIT_BY_ID__THEME_yellow \
-        white=$GIT_BY_ID__THEME_white \
+        default=$GIT_BY_ID__THEME_default \
         reset=$GIT_BY_ID__THEME_reset \
         sources=("${functions_source[git-by-id]}") \
 
     local \
-        list_arrow="\n+>       $white- $yellow"
+        list_arrow="\n+>       $default- $yellow"
 
     # ---------------------------------- header ---------------------------------- #
     -bid-lg-print "%B${GIT_BY_ID__THEME_yellow}>>>>> scrubbing git-by-id environment%b${GIT_BY_ID__THEME_reset}"
@@ -391,7 +392,7 @@ zmodload zsh/pcre
     (( $#sources )) && {
         for line in ${(f)"$(shasum $sources)"} ; {
             [[ $line =~ '^([a-z0-9]+) (.*)$' ]] \
-                && -bid-lg-print "$arrow ${match[1][1,8]} $white${(D)match[2]}$reset" \
+                && -bid-lg-print "$arrow ${match[1][1,8]} $default${(D)match[2]}$reset" \
                 || -bid-lg-print "$line"
         }
     }
@@ -441,7 +442,7 @@ zmodload zsh/pcre
     unset -m 'GIT_BY_ID__*' || refunc_status=1
 
     # ------------------------------ clean functions ----------------------------- #
-    -bid-lg-print "$arrow unloading functions$white:" "$list_arrow"${(on)^bid_funcs}"$reset"
+    -bid-lg-print "$arrow unloading functions$default:" "$list_arrow"${(on)^bid_funcs}"$reset"
     unfunction $bid_funcs || refunc_status=1
 
     # -------------------------- autoload for next time -------------------------- #
@@ -723,14 +724,14 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 (( $+functions[-bid-lg-print] )) || function -bid-lg-print() {
     { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
     autoload -Uz -- -bid-lg
-    (( _GIT_BY_ID_VERBOSITY >= -1 )) && -bid-lg %"F{white}$@%f"
+    (( _GIT_BY_ID_VERBOSITY >= -1 )) && -bid-lg %"F{default}$@%f"
     return $_rc
 }
 (( $+functions[-bid-lg-fixup] )) || function -bid-lg-fixup() {
     { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
     local \
         _rc=$status \
-        white=${GIT_BY_ID__THEME_white} \
+        default=${GIT_BY_ID__THEME_default} \
         magenta=${GIT_BY_ID__THEME_magenta} \
         reset=${GIT_BY_ID__THEME_reset} \
         msg c
@@ -738,9 +739,9 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     while [[ "$@" ]] {
         c="$1" ; shift
         case $c {
-            '[') msg="${msg%%[[:blank:]]##} ${white}$c$reset" ;;
-            ']') msg="${msg%%[[:blank:]]##}${white}$c $reset" ;;
-            '->') msg+="$white$c $reset" ;;
+            '[') msg="${msg%%[[:blank:]]##} ${default}$c$reset" ;;
+            ']') msg="${msg%%[[:blank:]]##}${default}$c $reset" ;;
+            '->') msg+="$default$c $reset" ;;
             '--') break ;;
             *)
                 [[ -v GIT_BY_ID__THEME_$c ]] \
@@ -754,7 +755,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 
     # add brackets if missing
     if [[ ! "$msg" =~ '^\[.*\]$' ]] {
-        msg="${white}[${msg}${white}]"
+        msg="${default}[${msg}${default}]"
     } else {
         print 'has brackets'
     }
@@ -1210,8 +1211,8 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     msg=(
         "${GIT_BY_ID__THEME_warn}WARNING%f: You tried to use a commit message for a branch name."
         "Continuing in $sleep_time seconds assuming that you meant..."
-        "    %F{green}git %F{magenta}branch %F{white}\"%F{yellow}$new_branch%F{white}\"%f"
-        "    %F{green}git %F{magenta}commit --all --message %F{white}\"%F{yellow}$commit_msg%F{white}\"%f"
+        "    %F{green}git %F{magenta}branch %F{default}\"%F{yellow}$new_branch%F{default}\"%f"
+        "    %F{green}git %F{magenta}commit --all --message %F{default}\"%F{yellow}$commit_msg%F{default}\"%f"
     )
     print -Pu2 -- "${(j:\n:)msg}"
     sleep $sleep_time
