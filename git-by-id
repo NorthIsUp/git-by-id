@@ -1494,6 +1494,8 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
             section=GIT_IDS_UNTRACKED
         } elif [[ "$line" =~ 'Untracked files:' ]] {
             section=GIT_IDS_UNTRACKED
+        } elif [[ "$line" =~ "\s+\(all conflicts fixed:\s+(.*)\)" ]] {
+            section=GIT_IDS_UNMERGED
         } elif [[ "$line" =~ "(\s+)($ansi)*(.*[deleted|both modified|modified|new file](?: by (?:us|them))?)(:)(\s+)(.*)$" ]] {
             local match_names=( lpad line_color kind colon rpad found_file ) i=0
             for (( i=1 ; i <= ${#match_names} ; i++ )) ; {
@@ -1502,12 +1504,12 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
             }
             [[ "$line_color" ]] && -bid-lg-trace "$kind found a color => ${(q)line_color}' ${line_color}◘%f"
             case "$kind" {
-                (deleted*)         kind="${_del}$line_color$kind" ;;
-                (new*)            kind="${_new}$line_color$kind" ;;
-                (both modified)   kind="${_both}$kind" ;;
-                (modified)        kind="${_mod}$line_color$kind" ;;
-                (renamed)         kind="${_ren}$line_color$kind" ;;
-                (*)               kind="$line_color$kind" ; -bid-lg-warn "plz handle: $kind" ;;
+                (deleted*)                  kind="${_del}$line_color$kind" ;;
+                (new*)                      kind="${_new}$line_color$kind" ;;
+                (both modified)             kind="${_both}$kind" ;;
+                (modified)                  kind="${_mod}$line_color$kind" ;;
+                (renamed)                   kind="${_ren}$line_color$kind" ;;
+                (*)                         kind="$line_color$kind" ; -bid-lg-warn "plz handle: $kind" ;;
             }
             : $(( ++GIT_IDS_COUNT ))
             line="$lpad$_ob$_id${(r:$id_pad:: :)GIT_IDS_COUNT}$_cb $kind$colon$line_color$rpad$found_file"
@@ -1519,6 +1521,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
         output+="$line"
 
         if [[ "${found_file}" ]] {
+            print -P -- "${found_file}"
             found_file="${found_file//$'\033'\[([0-9;])#m/}"
             GIT_IDS+=([$GIT_IDS_COUNT]="$found_file")
             typeset -x "${section}[$GIT_IDS_COUNT]"="$found_file"
