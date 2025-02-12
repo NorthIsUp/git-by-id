@@ -172,6 +172,8 @@ zmodload zsh/pcre
 
         # colors by what they do
         'id=%F{default}'      # ids/nubmers
+        'branch=%F{yellow}' # branches
+        'special=%F{blue}'   # special characters
         'path=%F{default}'    # paths
         'arrow=%F{magenta}' # arrow color
         'ok=%F{green}'      # good
@@ -830,7 +832,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
         GIT_IDS_COUNT=0 \
         GIT_IDS_LAST_RUN=${EPOCHREALTIME:-1}
 
-    typeset -Ag \
+    typeset -Agx \
         GIT_IDS=() \
         GIT_IDS_STAGED=() \
         GIT_IDS_UNMERGED=() \
@@ -1366,7 +1368,11 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 (( $+functions[-git-bid-number-branches] )) || function -git-bid-number-branches() {
     -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
     # Set numbered file shortcut in variable using
-    for branch in $(IFS=$'\n' ${GIT_BY_ID__GIT} branch --color=never "$@" | sed "s/^[* ]\{2\}//"); do
+    local branches=( "$(IFS=$'\n' ${GIT_BY_ID__GIT} branch --color=never "$@")" )
+    local current_branch=($(print $branches | grep -E '^\*' | sed "s/^[* ]\{2\}//"))
+    local sorted_branches=($(print $branches | sed "s/^[* ]\{2\}//" | sort --version-sort ))
+    GIT_IDS_CURRENT_BRANCH=$current_branch
+    for branch in $sorted_branches; do
         (( GIT_IDS_COUNT++ && GIT_BY_ID__SET_ID_VARS && GIT_BY_ID__SET_ID_VARS )) \
             && export $GIT_BY_ID__PREFIX_VAR$GIT_IDS_COUNT="$branch"
         GIT_IDS+=([$GIT_IDS_COUNT]="$branch")
@@ -1376,18 +1382,33 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 
 (( $+functions[-git-bid-print-branches] )) || function -git-bid-print-branches() {
     -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
-    local branches=( ${(f)"$(${GIT_BY_ID__GIT} branch --color=always $@)"} )
-    local pad="${#${#branches}}" output=()
 
-    for line in ${branches} ; {
-        if [[ "$line" =~ "^([ *]{2})(.*)" ]] {
-            output+=("${match[1]}${GIT_BY_ID__THEME_ob}${GIT_BY_ID__THEME_id}${(r:$pad:: :)$((++i))}${GIT_BY_ID__THEME_cb} ${match[2]}")
-        } else {
-            -bid-lg-error "no match '$line'"
+    local branches=${(k)GIT_IDS_BRANCHES}
+    local \
+        pad="${#${#branches}}" \
+        output=() \
+        branch_id \
+        branch \
+        star \
+        branch_theme
+
+    for branch_id in ${(nk)GIT_IDS_BRANCHES} ; {
+        local branch=$GIT_IDS_BRANCHES[$branch_id]
+        [[ $branch == $GIT_IDS_CURRENT_BRANCH ]] && {
+            star="* "
+            branch_theme=$GIT_BY_ID__THEME_special
+            id_theme=$GIT_BY_ID__THEME_special
+        } || {
+            star="  "
+            branch_theme=$GIT_BY_ID__THEME_branch
+            id_theme=$GIT_BY_ID__THEME_id
         }
+        output+=(
+            "${GIT_BY_ID__THEME_special}${star}${GIT_BY_ID__THEME_ob}${id_theme}${(r:$pad:: :)branch_id}${GIT_BY_ID__THEME_cb} ${branch_theme}${branch}${GIT_BY_ID__THEME_reset}"
+        )
     }
 
-    print -P -- "${(j:\n:)output}"
+    print -P -- "${(j:\n:)output}$GIT_BY_ID__THEME_reset"
 }
 (( $+functions[git-bid-number-branch] )) || function git-bid-number-branch() {
     -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
@@ -1396,10 +1417,12 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     zmodload zsh/pcre
     # git-bid-clean-vars
 
+    git-bid-clean-vars
+
     local branches branch= i=0
 
     (( ${#@} == 0 || ${@[(I)-a]} || ${@[(I)-r]} )) && {
-        -git-bid-print-branches $@ && -git-bid-number-branches $@
+        -git-bid-number-branches $@ && -git-bid-print-branches $@
         return $status
     }
 
