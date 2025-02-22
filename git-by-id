@@ -548,6 +548,9 @@ zmodload zsh/pcre
         (status)
             git-bid-number "${@[2,-1]}"
             ;;
+        (squash)
+            git-bid-squash "${@[2,-1]}"
+            ;;
         (commit | add | merge | mv)  # add verbose args
             extra_args+=--verbose
             ;&
@@ -714,6 +717,12 @@ zmodload zsh/pcre
 }
 
 for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_level}] )) || function -bid-lg-${_log_level}() {
+    # dynamically create logging functions
+    # -bid-lg-debug()
+    # -bid-lg-info()
+    # -bid-lg-warn()
+    # -bid-lg-error()
+    # -bid-lg-trace()
     { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
     local level_name=${0##*-}  # get the level from the function name
     (( _GIT_BY_ID_VERBOSITY >= ${GIT_BY_ID__LOG_VALUES[$level_name]:-5} )) && {
@@ -1099,6 +1108,93 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     print $co_branch
 }
 
+# ---------------------------- git-bid-sha-is-ancestor --------------------------- #
+(( $+functions[git-bid-sha-is-ancestor] )) || function git-bid-sha-is-ancestor() {
+    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+
+    local maybe_ancestor="$1"
+    local maybe_descendant="$2"
+
+    [[ -z "$maybe_ancestor" || -z "$maybe_descendant" ]] && {
+        print -u2 "+> Usage: git-bid-sha-is-ancestor <maybe_ancestor> <maybe_descendant>"
+        return 1
+    }
+
+    # Convert potential IDs to commit hashes
+    local hash_ancestor="$(git-bid-number-expand "$maybe_ancestor")"
+    local hash_descendant="$(git-bid-number-expand "$maybe_descendant")"
+
+    -bid-lg-debug "hash_ancestor: $hash_ancestor"
+    -bid-lg-debug "hash_descendant: $hash_descendant"
+    
+    git merge-base --is-ancestor "$hash_ancestor" "$hash_descendant"
+}
+
+
+# ---------------------------- git-bid-current-branch ---------------------------- #
+(( $+functions[git-bid-current-branch] )) || function git-bid-current-branch() {
+    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    ${GIT_BY_ID__GIT} rev-parse --abbrev-ref HEAD 2>/dev/null
+}
+
+# ------------------------------ git-bid-squash ------------------------------ #
+(( $+functions[git-bid-squash] )) || function git-bid-squash() {
+    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+
+
+    zparseopts -D -E -- \
+        -backup=backup \
+        -no-backup=no_backup
+
+    local squash_range=()
+    local inclusive='~1'
+
+
+    case ${#} ; {
+        (0)
+            local usage_msg=(
+                "Usage: git squash <sha1> [--no-backup]"
+                "     Squashes the current branch down to <sha1>"
+                "Usage: git squash <sha1> <sha2> [--no-backup]"
+                "     Squashes the range of commits between <sha1> and <sha2>"
+                "Options:"
+                "   --no-backup: do not create a backup branch"
+            )
+            print -u2 "${(j:\n:)usage_msg}"
+            return 1
+            ;;
+        (1)
+            squash_range=("$1$inclusive")
+
+            # create a backup branch
+            [[ ! $no_backup ]] && git branch --copy bak/$(git-bid-current-branch)
+            ;;
+        (2)
+
+            local sha1="$1"
+            local sha2="$2"
+
+            if (git-bid-sha-is-ancestor "$sha1" "$sha2")  {
+                ancestor_hash="$sha1"
+                descendant_hash="$sha2"
+            } elif (git-bid-sha-is-ancestor "$sha2" "$sha1") {
+                ancestor_hash="$sha2"
+                descendant_hash="$sha1"
+            } else {
+                -bid-lg-error "hashes are not related"
+                return 1
+            }
+
+            squash_range=("$ancestor_hash$inclusive" "$descendant_hash")
+            ;;
+    }
+
+    # Execute the squash via interactive rebase
+    GIT_SEQUENCE_EDITOR="sed -i -e '2,\$s/^pick/squash/'" \
+        -bid-lg-cmd ${GIT_BY_ID__GIT} rebase -i $squash_range
+    # set +x
+}
+
 # ----------------------------- git-bid-checkout ----------------------------- #
 (( $+functions[git-bid-checkout] )) || function git-bid-checkout() {
     -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
@@ -1137,14 +1233,30 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
         expand_args+=(--byid-branch)
     }
 
+    local result
     # run the git checkout command
-    git-bid-number-expand --byid-execute $expand_args $cmd "$@"
+    while IFS= read -r line; do
+        if [[ "$line" =~ "status=(.*)" ]] { # hack to capture the status of the command
+            co_status=${match[1]}
+            continue
+        } elif [[ "$line" =~ "fatal:.*" ]] {
+            result=$line
+            line="$GIT_BY_ID__THEME_error$line$GIT_BY_ID__THEME_reset"
+        }
 
-    local co_status=$status
+        # actually print the line to the user on stderr
+        print -Pu2 -- "$line"
+    done < <(
+        git-bid-number-expand --byid-execute $expand_args $cmd "$@" \
+            2>&1 >/dev/stdout # stderr to fd1 for the read loop, fd1 directly to the user
+            print "status=$status"
+        )
+
+    -bid-lg-debug "co_status: $co_status"
+    [[ "$result" =~ "fatal:.*" ]] && return $co_status
+
     case "$co_status" {
-        ( 0 )
-            return 0
-            ;;
+        ( 0 ) return 0 ;;
         ( 128 )
             -git-bid-handle-accidental-branch "$@"
             co_status=$status
