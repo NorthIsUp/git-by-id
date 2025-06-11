@@ -122,6 +122,9 @@ zmodload zsh/pcre
     # Alias <cmd>i for interactive mode where supported. e.g. addi -> add --interactive
     : "${GIT_BY_ID__INTERACTIVE_I:=1}"
 
+    # Push interactive history to the command line
+    : "${GIT_BY_ID__INTERACTIVE_I_HISTORY:=1}"
+
     # Defalt options to add to all fzf calls
     : "${GIT_BY_ID__FZF_DEFAULT_OPTS:=}"
 
@@ -385,8 +388,11 @@ zmodload zsh/pcre
     local \
         list_arrow="\n+>       $default- $yellow"
 
+    local \
+        theme_yellow=$GIT_BY_ID__THEME_yellow \
+        theme_reset=$GIT_BY_ID__THEME_reset
     # ---------------------------------- header ---------------------------------- #
-    -bid-lg-print "%B${GIT_BY_ID__THEME_yellow}>>>>> scrubbing git-by-id environment%b${GIT_BY_ID__THEME_reset}"
+    -bid-lg-print "%B${theme_yellow}>>>>> scrubbing git-by-id environment%b${theme_reset}"
     -bid-lg-trace "$arrow args: $@"
     -bid-lg-trace "$arrow shell pid: $$"
     -bid-lg-print "$pharrow cleaning config$reset"
@@ -429,23 +435,41 @@ zmodload zsh/pcre
         bid_util_funcs=(
             ${(k)functions[(I)-bid-*]}
         ) \
-        refunc_status=0
+        refunc_status=0 \
+        func \
+        errors=()
 
     # print the vars to scrub
     -bid-lg-print "$arrow cleaning variables$reset" $list_arrow${(on)^unset_vars}"$reset"
-    typeset +r -x $unset_vars || refunc_status=1
-    unset $unset_vars || refunc_status=1
+    typeset +r -x $unset_vars || {
+        errors+=("could not export ${unset_vars[*]}")
+    }
+    unset -- $unset_vars || {
+        errors+=("could not unset '${unset_vars[*]}'")
+    }
 
-    -bid-lg-print "$arrow cleaning prefix variables$reset" $list_arrow"${GIT_BY_ID__PREFIX_VAR}[0-9]##"
-    unset -m "${GIT_BY_ID__PREFIX_VAR}[0-9]##" || refunc_status=1
+    [[ -n $(typeset -m "${GIT_BY_ID__PREFIX_VAR}[0-9]##") ]] && {
+        -bid-lg-print "$arrow cleaning prefix variables$reset" $list_arrow"${GIT_BY_ID__PREFIX_VAR}[0-9]##"
+        unset -m -- "${GIT_BY_ID__PREFIX_VAR}[0-9]##" || {
+            errors+=("could not unset '${GIT_BY_ID__PREFIX_VAR}[0-9]##'")
+        }
+    }
 
     -bid-lg-print "$arrow cleaning config variables$reset" $list_arrow"GIT_BY_ID__*"
-    typeset +r -xm 'GIT_BY_ID__*' || refunc_status=1
-    unset -m 'GIT_BY_ID__*' || refunc_status=1
+    typeset +r -xm 'GIT_BY_ID__*' || {
+        errors+=("could not export 'GIT_BY_ID__*'")
+    }
+    unset -m -- 'GIT_BY_ID__*' || {
+        errors+=("could not unset 'GIT_BY_ID__*'")
+    }
 
     # ------------------------------ clean functions ----------------------------- #
     -bid-lg-print "$arrow unloading functions$default:" "$list_arrow"${(on)^bid_funcs}"$reset"
-    unfunction $bid_funcs || refunc_status=1
+    for func ($bid_funcs) {
+        unfunction -- $func || {
+            errors+=("could not unfunction $func")
+        }
+    }
 
     # -------------------------- autoload for next time -------------------------- #
     -bid-lg-print "$arrow autoloading git-by-id$reset"
@@ -467,11 +491,21 @@ zmodload zsh/pcre
         -bid-lg-trace "teardown complete"
     }
 
-    -bid-lg-print "%B${GIT_BY_ID__THEME_yellow}<<<<< scrubbing git-by-id environment complete %b${GIT_BY_ID__THEME_reset}"
-
     # remove all functions again (to catch the logging functions we just used) but not git-by-id which we just loaded
-    unfunction ${bid_util_funcs} 2>/dev/null || true
+    -bid-lg-print "$arrow unloading functions$default:" "$list_arrow"${(on)^bid_util_funcs}"$reset"
+    -bid-lg-print "%B${theme_yellow}<<<<< scrubbing git-by-id environment complete %b${theme_reset}"
+    for func ($bid_util_funcs) {
+        unfunction -- $func || {
+            errors+=("could not unfunction $func")
+        }
+    }
 
+    (( ${#errors} )) && {
+        for error ($errors) {
+            print -Pu2 "+> %F{red}refunc error: $error%f"
+        }
+        return 1
+    }
     return $refunc_status
 }
 
@@ -695,13 +729,17 @@ zmodload zsh/pcre
     #   now         - $EPOCHSECONDS
     #   file_line   - ${${funcfiletrace[2]}:t}
     autoload -Uz -- -bid-lg
-    local \
-        level=$1 \
-        lvl=$GIT_BY_ID__LOG_LEVELS[$1] \
-        args=${@[2,-1]} \
-        color=${(P)${:-GIT_BY_ID__THEME__bid_lg_$1}} \
-        depth=0
 
+    local \
+        level="$1"  \
+        lvl="$GIT_BY_ID__LOG_LEVELS[$1] " \
+        args=${@[2,-1]}  \
+        color=${(P)${:-GIT_BY_ID__THEME__bid_lg_$1}}  \
+        depth=0  \
+        number_lines=
+
+    zparseopts -D -E -- \
+        -nl=number_lines
 
     until [[ "${funcstack[$(( ++depth ))]}" != _* ]] {}
 
@@ -711,9 +749,20 @@ zmodload zsh/pcre
     msg=${msg/\%file_line/${(r:20:)${funcfiletrace[$(( depth - 1 ))]}:t}}
     msg=${msg/\%func/${funcstack[$depth]}}
     msg=${msg/\%now/$EPOCHSECONDS}
-    msg=${msg/\%msg/$args}
 
-    -bid-lg "${color}${msg}${GIT_BY_ID__THEME_reset}"
+    [[ "$number_lines" ]] && {
+        print -u2 "+> %F{yellow}number of lines: $number_lines%f"
+        local i=0 arg= args=(${@[2,-1]})
+        for arg ( $args ) {
+            arg="${(l:3:)$((++i))}: $arg"
+            -bid-lg "${color}${msg/\%msg/$arg}${GIT_BY_ID__THEME_reset}"
+        }
+    } || {
+        msg=${msg/\%msg/$args}
+        -bid-lg "${color}${msg}${GIT_BY_ID__THEME_reset}"
+    }
+    set +x
+
 }
 
 for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_level}] )) || function -bid-lg-${_log_level}() {
@@ -925,6 +974,8 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     )
 
     if (( ${#chosen} > 0 )) {
+        # inject the chosen files into the command
+        (( GIT_BY_ID__INTERACTIVE_I_HISTORY )) && print -s "git ${git_cmd} $chosen"
         -bid-lg-cmd git ${git_cmd} $chosen
         local _exit_code=$status
         [[ "$git_status" ]] && git status
@@ -958,11 +1009,9 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     local preview="
         branch=\$( echo {} | ${extracter} )
         stuff=(
-            \"\$(git log \$branch -1 --pretty=format:\"Branch: %D\\nSHA: %H\\nTime: %cd\\n\\n%s\")\"
-            \"----\"
-            \"\$(git log main..\$branch --skip=2 --pretty=format:"%s")\"
+            \"\$(git log \$branch -1 --pretty=format:\"Branch: %D\\nSHA: %H\\nTime: %cd\\n\" --color=always)\"
+            \"\$(git diff --merge-base main \$branch --compact-summary --color=always)\"
         )
-
         [[ \$stuff[-1] ]] || stuff=(\$stuff[1,-2])
         [[ \$stuff[-1] == ---- ]] && stuff=(\$stuff[1,-2])
 
@@ -983,7 +1032,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     # get list of files for fzf
     local chosen=(
         $(
-        command git branch --format="%(refname:short)"|
+        command git branch --sort=-committerdate --format="%(refname:short)"|
         sed '/^$/d' |
         fzf $fzf_opts |
         sh -c "${extracter}"
@@ -991,6 +1040,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     )
 
     if (( ${#chosen} > 0 )) {
+        (( GIT_BY_ID__INTERACTIVE_I_HISTORY )) && print -s "git ${git_cmd} $chosen"
         -bid-lg-cmd git ${git_cmd} $chosen
         local _exit_code=$status
         [[ "$git_status" ]] && git status
@@ -1584,7 +1634,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 
 # ---------------------------------- number ---------------------------------- #
 (( $+functions[git-bid-number] )) || function git-bid-number() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    -bid-lg-trace "running '$0' with @: ${(qqqq)@:-}"
 
     # Git status --porcelain output
     # X          Y     Meaning
@@ -1631,6 +1681,9 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     id_pad="${#${#git_status}}"
     GIT_IDS_COUNT=0
 
+    local _st i=0
+    -bid-lg-trace --nl $git_status
+    
     # local ob="${fg[black]}[$reset_color" cb="${fg[black]}]$reset_color"
     local \
         _ob="${GIT_BY_ID__THEME_ob}" \
@@ -1657,7 +1710,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
             section=GIT_IDS_UNTRACKED
         } elif [[ "$line" =~ "\s+\(all conflicts fixed:\s+(.*)\)" ]] {
             section=GIT_IDS_UNMERGED
-        } elif [[ "$line" =~ "(\s+)($ansi)*(.*[deleted|both modified|modified|new file](?: by (?:us|them))?)(:)(\s+)(.*)$" ]] {
+        } elif [[ "$line" =~ "(\s+)($ansi)(.*[deleted|both modified|modified|new file](?: by (?:us|them))?)(:)(\s+)(.*)$" ]] {
             local match_names=( lpad line_color kind colon rpad found_file ) i=0
             for (( i=1 ; i <= ${#match_names} ; i++ )) ; {
                 local "${match_names[i]}"="$match[$i]"
@@ -1675,6 +1728,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
             : $(( ++GIT_IDS_COUNT ))
             line="$lpad$_ob$_id${(r:$id_pad:: :)GIT_IDS_COUNT}$_cb $kind$colon$line_color$rpad$found_file"
         } elif [[ "$line" =~ "(\t)(.*)" ]] {
+            print "else bro"
             local lpad="$match[1]" found_file="$match[2]"
             line="$lpad$_ob$_id$(( ++GIT_IDS_COUNT ))$_cb $found_file"
         }
