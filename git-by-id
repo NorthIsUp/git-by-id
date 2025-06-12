@@ -1728,7 +1728,6 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
             : $(( ++GIT_IDS_COUNT ))
             line="$lpad$_ob$_id${(r:$id_pad:: :)GIT_IDS_COUNT}$_cb $kind$colon$line_color$rpad$found_file"
         } elif [[ "$line" =~ "(\t)(.*)" ]] {
-            print "else bro"
             local lpad="$match[1]" found_file="$match[2]"
             line="$lpad$_ob$_id$(( ++GIT_IDS_COUNT ))$_cb $found_file"
         }
