@@ -1496,9 +1496,6 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
         esac
     }
 
-    print 'exiting'
-    return 1
-
     if [[
         ${GIT_BY_ID__CONFIRM_PUSH_TO_MAIN} -eq 1
         && ! $_yes  # skip if -y or --yes is passed
