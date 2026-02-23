@@ -1,6 +1,9 @@
 #compdef git-bid=git git-by-id=git
 #!/usr/bin/env zsh
 # code: language=zsh
+
+local previous_command_status=$?
+
 setopt re_match_pcre
 zmodload zsh/pcre
 
@@ -118,6 +121,12 @@ zmodload zsh/pcre
 
     # Confirm pushes to main branch
     : "${GIT_BY_ID__CONFIRM_PUSH_TO_MAIN:=1}"
+
+    # Warn about pushes after a failed command
+    : "${GIT_BY_ID__PUSH_AFTER_FAILED_COMMAND:=error}" # error, warn, or ignore
+
+    # Main branch name
+    : "${GIT_BY_ID__MAIN_BRANCH:=main}"
 
     # Alias <cmd>i for interactive mode where supported. e.g. addi -> add --interactive
     : "${GIT_BY_ID__INTERACTIVE_I:=1}"
@@ -273,8 +282,10 @@ zmodload zsh/pcre
 
     # freeze settings
     # global export read-only match
-    typeset -gxrm 'GIT_BY_ID__*'
-    typeset -gx +r GIT_BY_ID__VERBOSITY
+    # typeset -gxrm 'GIT_BY_ID__*'
+    # typeset -gx +r GIT_BY_ID__VERBOSITY
+
+    typeset -gxm 'GIT_BY_ID__*'
 
     if (( ${__trace__:-0} > 0 )) {
         local s settings=( ${(@f)${"$(typeset -m 'GIT_BY_ID__*')"}} )
@@ -630,7 +641,9 @@ zmodload zsh/pcre
                 # run custom git-* commands directly
                 cmd="git-$one" ; shift
             }
-            -bid-lg-cmd $cmd "$@"
+            local needs_v=
+            [[ $flag_v && $unwrapped_cmd =~ '^(remote|fetch)$' ]] && needs_v=-v
+            -bid-lg-cmd $cmd "$@" $needs_v
             return $status
             ;;
     }
@@ -710,6 +723,35 @@ zmodload zsh/pcre
         builtin print -P "+> $@" | \
             sed -r "s/[[:cntrl:]]\[[0-9]{1,3}m//g" \
             >&2
+    }
+    return $_rc
+}
+(( $+functions[-bid-lg-ask] )) || function -bid-lg-ask() {
+    { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
+
+    local -A opts=(
+        [--default]="no"
+        [-y]="y|yes|ok"
+        [-n]="n|no|exit|q|quit"
+    )
+    local \
+        msg="$1"\
+        result= \
+        nl=$'\n' \
+        default=${opts[--default]}
+
+    zparseopts -A opts -D -E -K -- -default: y: n:
+
+    local until_match="(${opts[-y]}|${opts[-n]})"
+
+    [[ "$default" =~ '^(y|yes)$' ]] \
+        && { default="yes" ; options_msg="Y/n" } \
+        || { default="no" ; options_msg="y/N" }
+    
+    until [[ "${result:l}" =~ $until_match ]] {
+        read result\?"$msg? [$options_msg]?${nl}> "
+        [[ ${${result:-$default}:l} =~ ^${opts[-n]}$ ]] && return 1
+        print -u2 "'$result' is not a valid option, try again"
     }
     return $_rc
 }
@@ -902,6 +944,15 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 }
 
 # ------------------------------- git-bid-tgit ------------------------------- #
+(( $+functions[git-bid-fixup-history] )) || function git-bid-fixup-history() {
+    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+
+    # remove the bad command from the history
+    fc -R
+
+    # add the fixed command to the history
+    fc -s "$@"
+}
 (( $+functions[git-bid-tgit] )) || function git-bid-tgit() {
     -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
@@ -949,7 +1000,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
         if (git status -s -- \$file | grep '^??') &>/dev/null; then  # diff with /dev/null for untracked files
             git diff --color=always --no-index -- /dev/null \$file | sed '2 s/added:/untracked:/'
         else
-            git diff --color=always origin/main -- \$file
+            git diff --color=always origin/${GIT_BY_ID__MAIN_BRANCH} -- \$file
         fi
     "
     local fzf_opts=(
@@ -1010,7 +1061,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
         branch=\$( echo {} | ${extracter} )
         stuff=(
             \"\$(git log \$branch -1 --pretty=format:\"Branch: %D\\nSHA: %H\\nTime: %cd\\n\" --color=always)\"
-            \"\$(git diff --merge-base main \$branch --compact-summary --color=always)\"
+            \"\$(git diff --merge-base ${GIT_BY_ID__MAIN_BRANCH} \$branch --compact-summary --color=always)\"
         )
         [[ \$stuff[-1] ]] || stuff=(\$stuff[1,-2])
         [[ \$stuff[-1] == ---- ]] && stuff=(\$stuff[1,-2])
@@ -1259,16 +1310,16 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
         expand_args=()
 
     has_master_branch="$($GIT_BY_ID__GIT_CMD branch --list master)"
-    has_main_branch="$($GIT_BY_ID__GIT_CMD branch --list main)"
+    has_main_branch="$($GIT_BY_ID__GIT_CMD branch --list ${GIT_BY_ID__MAIN_BRANCH})"
 
     if (( ${GIT_BY_ID__COERSE_TO_MAIN} )) && [[
         "$master_index" -le ${#@}
         && -z "$has_master_branch"
         && "$has_main_branch"
     ]] {
-        -bid-lg-fixup green git red master -\> green git magenta main -- "${@[3,-1]}"
+        -bid-lg-fixup green git red master -\> green git magenta ${GIT_BY_ID__MAIN_BRANCH} -- "${@[3,-1]}"
         local args=("$@")
-        args[$master_index]="main"
+        args[$master_index]="${GIT_BY_ID__MAIN_BRANCH}"
         set - $args
     }
 
@@ -1423,17 +1474,38 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 
     local _yes
     zparseopts -D -E -- y=_yes -yes=_yes
+
+    if (( previous_command_status )) {
+        case "${GIT_BY_ID__PUSH_AFTER_FAILED_COMMAND}" in
+            (ignore)
+                # allow the push without warning
+                ;;
+            (error)
+                # prevent pushes after a failed command
+                print -Pu2 "${GIT_BY_ID__THEME_error}Push is blocked: The previous command failed with status $previous_command_status${GIT_BY_ID__THEME_reset}"
+                return $previous_command_status
+                ;;
+            (warn|ask)
+                # warn the user about the failed command
+                print -Pu2 "${GIT_BY_ID__THEME_warn}Push is not advised: The previous command failed with status $previous_command_status.${GIT_BY_ID__THEME_reset}"
+                ;|
+            (ask)
+                # ask the user if they still want to push
+                -bid-lg-ask "Do you still want to push?"
+                ;;
+        esac
+    }
+
+    print 'exiting'
+    return 1
+
     if [[
         ${GIT_BY_ID__CONFIRM_PUSH_TO_MAIN} -eq 1
         && ! $_yes  # skip if -y or --yes is passed
         && -t 1     # check if fd1 is open for read
-        && "$($cmd branch --show-current)" =~ '^(master|main)$'
+        && "$($cmd branch --show-current)" =~ '^(master|main|'${GIT_BY_ID__MAIN_BRANCH}')$'
     ]] {
-        local should_push nl=$'\n'
-        until [[ "${should_push:l}" =~ '(y|yes|n|no)$' ]] {
-            read should_push\?"Push to ${match[1]}? [y/N]?${nl}> "
-            [[ ${${should_push:-no}:l} =~ '^(n|no|exit)$' ]] && return 1
-        }
+        -bid-lg-ask "Push to ${match[1]}?"
     }
     $cmd "$@"
 }
