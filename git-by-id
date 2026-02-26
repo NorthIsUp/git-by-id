@@ -1480,6 +1480,18 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     local _yes
     zparseopts -D -E -- y=_yes -yes=_yes
 
+    if (( (! previous_command_is_git) && previous_command_status )) {
+        local previous_command_head=${previous_command%% *} elipsis
+        [[ $previous_command_head != $previous_command ]] && elipsis=" ..." || elipsis=""
+        local msg=(
+            "WARNING: The previous command failed with status $previous_command_status, but continuing because it was not a git command"
+            # ""
+            # "    $previous_command_head$elipsis"
+            # ""
+        )
+        print -Pu2 "${GIT_BY_ID__THEME_warn}${(j:\n:)msg}${GIT_BY_ID__THEME_reset}"
+    }
+
     if (( previous_command_is_git && previous_command_status )) {
         case "${GIT_BY_ID__PUSH_AFTER_FAILED_COMMAND}" in
             (ignore)
@@ -1487,12 +1499,12 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
                 ;;
             (error)
                 # prevent pushes after a failed command
-                print -Pu2 "${GIT_BY_ID__THEME_error}Push is blocked: The previous command failed with status $previous_command_status${GIT_BY_ID__THEME_reset}"
+                print -Pu2 "${GIT_BY_ID__THEME_error}ERROR: Push is blocked: The previous command failed with status $previous_command_status${GIT_BY_ID__THEME_reset}"
                 return $previous_command_status
                 ;;
             (warn|ask)
                 # warn the user about the failed command
-                print -Pu2 "${GIT_BY_ID__THEME_warn}Push is not advised: The previous command failed with status $previous_command_status.${GIT_BY_ID__THEME_reset}"
+                print -Pu2 "${GIT_BY_ID__THEME_warn}WARNING: Push is not advised: The previous command failed with status $previous_command_status.${GIT_BY_ID__THEME_reset}"
                 ;|
             (ask)
                 # ask the user if they still want to push
