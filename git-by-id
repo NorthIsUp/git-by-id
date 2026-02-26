@@ -3,6 +3,9 @@
 # code: language=zsh
 
 local previous_command_status=$?
+local previous_command=${history[$((HISTCMD-1))]}
+local previous_command_is_git=0
+[[ "$previous_command" =~ "^git\s+" ]] && previous_command_is_git=1
 
 setopt re_match_pcre
 zmodload zsh/pcre
@@ -731,29 +734,34 @@ zmodload zsh/pcre
 
     local -A opts=(
         [--default]="no"
-        [-y]="y|yes|ok"
-        [-n]="n|no|exit|q|quit"
+        [-y]="y|yes"
+        [-n]="n|no"
     )
+    
+    zparseopts -A opts -D -E -K -- -no-default -default: y: n:
+
     local \
         msg="$1"\
         result= \
         nl=$'\n' \
-        default=${opts[--default]}
+        default=${opts[--default]:l} \
+        yeses=${opts[-y]:l} noes=${opts[-n]:l}
 
-    zparseopts -A opts -D -E -K -- -default: y: n:
-
-    local until_match="(${opts[-y]}|${opts[-n]})"
-
-    [[ "$default" =~ '^(y|yes)$' ]] \
-        && { default="yes" ; options_msg="Y/n" } \
-        || { default="no" ; options_msg="y/N" }
+    case "${default}" {
+        (y|yes)     options_msg="Y/n" ;;
+        (n|no)      options_msg="y/N" ;;
+        (none|*)    options_msg="y/n" ; default="" ;;
+    }
     
-    until [[ "${result:l}" =~ $until_match ]] {
+    until [[ "${result:l}" =~ "($yeses|$noes)" ]] {
         read result\?"$msg? [$options_msg]?${nl}> "
-        [[ ${${result:-$default}:l} =~ ^${opts[-n]}$ ]] && return 1
+        result=${${result:-$default}:l}
+        [[ $result =~ ^$yeses$ ]] && return 0
+        [[ $result =~ ^$noes$ ]] && return 1
         print -u2 "'$result' is not a valid option, try again"
     }
-    return $_rc
+    # should never get here
+    return 1
 }
 (( $+functions[-bid-lg-inspect] )) || function -bid-lg-inspect() {
     { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
@@ -803,8 +811,6 @@ zmodload zsh/pcre
         msg=${msg/\%msg/$args}
         -bid-lg "${color}${msg}${GIT_BY_ID__THEME_reset}"
     }
-    set +x
-
 }
 
 for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_level}] )) || function -bid-lg-${_log_level}() {
@@ -1293,7 +1299,6 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     # Execute the squash via interactive rebase
     GIT_SEQUENCE_EDITOR="sed -i -e '2,\$s/^pick/squash/'" \
         -bid-lg-cmd ${GIT_BY_ID__GIT} rebase -i $squash_range
-    # set +x
 }
 
 # ----------------------------- git-bid-checkout ----------------------------- #
@@ -1475,7 +1480,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     local _yes
     zparseopts -D -E -- y=_yes -yes=_yes
 
-    if (( previous_command_status )) {
+    if (( previous_command_is_git && previous_command_status )) {
         case "${GIT_BY_ID__PUSH_AFTER_FAILED_COMMAND}" in
             (ignore)
                 # allow the push without warning
