@@ -1287,8 +1287,12 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
         (1)
             squash_range=("$1$inclusive")
 
-            # create a backup branch
-            [[ ! $no_backup ]] && git branch --copy bak/$(git-bid-current-branch)
+            # create a backup branch (abort the squash if it can't be made)
+            [[ ! $no_backup ]] && {
+                local _cur=$(git-bid-current-branch)
+                [[ $_cur == HEAD ]] && { -bid-lg-error "detached HEAD — refusing to squash without a named branch"; return 1 }
+                git branch --copy --force bak/$_cur || { -bid-lg-error "backup branch bak/$_cur failed — aborting squash"; return 1 }
+            }
             ;;
         (2)
 
@@ -1311,13 +1315,13 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     }
 
     # Execute the squash via interactive rebase
-    GIT_SEQUENCE_EDITOR="sed -i -e '2,\$s/^pick/squash/'" \
+    GIT_SEQUENCE_EDITOR="perl -i -pe 's/^pick/squash/ if \$. > 1'" \
         -bid-lg-cmd ${GIT_BY_ID__GIT} rebase -i $squash_range
 }
 
 # ----------------------------- git-bid-checkout ----------------------------- #
 (( $+functions[git-bid-checkout] )) || function git-bid-checkout() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
     setopt re_match_pcre
     zmodload zsh/pcre
