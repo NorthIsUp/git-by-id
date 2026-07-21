@@ -145,9 +145,6 @@ zmodload zsh/datetime
     # Defalt options to add to all fzf calls
     : "${GIT_BY_ID__FZF_DEFAULT_OPTS:=}"
 
-    # Default max number of branches before falling back to plain git
-    : "${GIT_BY_ID__BRANCH_LIMIT:=300}"
-
     # prefix for log lines
     #
     #   level       - long form name (trace, debug, info, warn, error)
@@ -288,11 +285,6 @@ zmodload zsh/datetime
     # mark time that setup completes (1 if EPOCHREALTIME is disabled)
     : "${GIT_BY_ID__SETUP_COMPLETE:=${EPOCHREALTIME:-1}}"
 
-    # freeze settings
-    # global export read-only match
-    # typeset -gxrm 'GIT_BY_ID__*'
-    # typeset -gx +r GIT_BY_ID__VERBOSITY
-
     typeset -gxm 'GIT_BY_ID__*'
 
     if (( ${__trace__:-0} > 0 )) {
@@ -301,11 +293,6 @@ zmodload zsh/datetime
             print -Pu2 "%F{yellow}$s%f"
         }
     }
-
-    # proactively source the file before continuing
-    # this loads all the functions and enables faster loading of the commands
-    # in subsequent runs this will speed up execution
-    # [[ -e "$functions_source[git-by-id]" ]] && builtin source $functions_source[git-by-id]
 
     local \
         bid_funcs=(
@@ -325,7 +312,7 @@ zmodload zsh/datetime
 
     # git <git-bid-options> COMMAND <git-options>
     # this zparseopts only parses out options before the git command/alias (hence no -E)
-    local flag_v flag_q flag_level start_time=$EPOCHREALTIME masked_args=()
+    local flag_v flag_q flag_level start_time=$EPOCHREALTIME
     # these opts are removed from $@ for Git
     # NO -E: stop at the first non-option (the git subcommand) so we only pull wrapper
     # flags that come BEFORE it. With -E, `git tag -v <tag>` had -v stripped and ran
@@ -364,14 +351,6 @@ zmodload zsh/datetime
     -bid-lg-trace "git-bid-entrypoint at: $start_time"
     -bid-lg-trace "git-bid-setup at: ${GIT_BY_ID__SETUP_COMPLETE}"
     -bid-lg-debug "verbosity set to: '${flag_level#--*}' $_GIT_BY_ID_VERBOSITY"
-
-    # re-add any arguments that git uses
-    local -U valid_git_args=($flag_v)
-    if (( $flag_v[(I)--verbose] )) {
-        valid_git_args+=(--verbose)
-    } elif (( $flag_v[(I)-v] )) {
-        valid_git_args+=(-v)
-    }
 
     # run the function like normal!
     export LINES
@@ -641,13 +620,6 @@ zmodload zsh/datetime
         (push)
             git-bid-push "$@"
             ;;
-        # (refunc|bid-refunc)
-        #     # usually this is caught above
-        #     git-bid-teardown "$@"
-        #     ;;
-        # (unfunc|bid-unfunc)
-        #     git-bid-teardown --no-setup
-        #     ;;
         (*)
             (( $+commands[git-$one] || $+functions[git-$one] )) && {
                 # run custom git-* commands directly
@@ -683,7 +655,6 @@ zmodload zsh/datetime
     local \
         MATCH \
         match \
-        accum=() \
         string=$( cat $functions_source[$0] ) \
         bounds \
         name \
@@ -699,7 +670,6 @@ zmodload zsh/datetime
     pcre_match -b "$string"
     while [[ $? -eq 0 ]] do
         bounds=($=ZPCRE_OP)
-        accum+=$MATCH
         name=$match[2]
         bidfuncs[$name]=$match[3]
         (( $+opts[--inplace] == 0 )) && {
@@ -716,8 +686,6 @@ zmodload zsh/datetime
         done
     }
     -bid-lg "splitup complete"
-
-    # print -l $accum
 }
 (( $+functions[-bid-lg-use-color] )) || function -bid-lg-use-color() {
     # only use color if stdout is of type tty
@@ -1405,10 +1373,6 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 
     case "$co_status" {
         ( 0 ) return 0 ;;
-        # ( 128 )
-        #     -git-bid-handle-accidental-branch "$@"
-        #     co_status=$status
-        #     ;;
     }
 
     # ponytail: a failed `checkout -b …/next` leaves a gap in the branch counter —
@@ -1737,12 +1701,6 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     # branches=( ${(f)"$(${GIT_BY_ID__GIT} branch --color=never ${@})"} )
     -bid-lg-trace "GIT_IDS_COUNT: $GIT_IDS_COUNT"
     -bid-lg-trace "branch count: ${#branches}"
-
-    # if (( $#branches > GIT_BY_ID__BRANCH_LIMIT )) ; then
-    #     -bid-lg-info "too many branches (${#branches} > $GIT_BY_ID__BRANCH_LIMIT), falling back to normal git branch"
-    #     git-bid-number-expand --byid-execute ${GIT_BY_ID__GIT} branch "$@"
-    #     return $status
-    # fi
 
     # Fall back to normal git branch if...
     git-bid-number-expand --byid-execute ${GIT_BY_ID__GIT} branch "$@"
