@@ -1782,10 +1782,10 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     # ?           ?    untracked
     # !           !    ignored
     # -------------------------------------------------
-    setopt re_match_pcre
+    setopt localoptions re_match_pcre extendedglob
     zmodload zsh/pcre
     local \
-        git_args=(-c color.status=always) \
+        git_args=(-c color.status=always -c core.quotePath=false) \
         git_status=() \
         grouping \
         line section \
@@ -1797,7 +1797,8 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 
     zparseopts -E -D -- q=quiet -quiet=quiet
 
-    git_status=( "${(f@)$($GIT_BY_ID__GIT_CMD $git_args status "$@")}" )
+    git_status=( "${(f@)$(LC_ALL=C $GIT_BY_ID__GIT_CMD $git_args status "$@")}" )
+    local _git_rc=$?
     id_pad="${#${#git_status}}"
     GIT_IDS_COUNT=0
 
@@ -1823,14 +1824,14 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
         } elif [[ "$line" =~ 'Changes to be committed:' ]] {
             section=GIT_IDS_STAGED
         } elif [[ "$line" =~ 'Changes not staged for commit:' ]] {
-            section=GIT_IDS_UNMERGED
+            section=GIT_IDS_UNSTAGED
         } elif [[ "$line" =~ 'Unmerged paths:' ]] {
-            section=GIT_IDS_UNTRACKED
+            section=GIT_IDS_UNMERGED
         } elif [[ "$line" =~ 'Untracked files:' ]] {
             section=GIT_IDS_UNTRACKED
         } elif [[ "$line" =~ "\s+\(all conflicts fixed:\s+(.*)\)" ]] {
             section=GIT_IDS_UNMERGED
-        } elif [[ "$line" =~ "(\s+)($ansi)(.*[deleted|both modified|modified|new file](?: by (?:us|them))?)(:)(\s+)(.*)$" ]] {
+        } elif [[ "$line" =~ "(\s+)($ansi)((?:deleted|both modified|modified|new file|renamed|copied|typechange)(?: by (?:us|them))?)(:)(\s+)(.*)$" ]] {
             local match_names=( lpad line_color kind colon rpad found_file ) i=0
             for (( i=1 ; i <= ${#match_names} ; i++ )) ; {
                 local "${match_names[i]}"="$match[$i]"
@@ -1855,7 +1856,6 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
         output+="$line"
 
         if [[ "${found_file}" ]] {
-            print -P -- "${found_file}"
             found_file="${found_file//$'\033'\[([0-9;])#m/}"
             GIT_IDS+=([$GIT_IDS_COUNT]="$found_file")
             typeset -x "${section}[$GIT_IDS_COUNT]"="$found_file"
@@ -1869,7 +1869,8 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
         output="${(j:\n:)output:gs/\`/\\\\\`/}\n"
         print -nP -- "${output}"
     }
-    return $(( !GIT_IDS_COUNT ))
+    # exit with git's own status, not "did we find ids" — a clean tree is success
+    return $_git_rc
 }
 
 -git-by-id "$@"
