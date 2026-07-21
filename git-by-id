@@ -321,14 +321,16 @@ zmodload zsh/datetime
 
 # -------------------------------- entrypoints ------------------------------- #
 (( $+functions[git-bid-entrypoint] )) || function git-bid-entrypoint() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
     # git <git-bid-options> COMMAND <git-options>
     # this zparseopts only parses out options before the git command/alias (hence no -E)
     local flag_v flag_q flag_level start_time=$EPOCHREALTIME masked_args=()
     # these opts are removed from $@ for Git
-    # TODO: correctly handle passing --verbose and --quiet
-    zparseopts -D -E -- \
+    # NO -E: stop at the first non-option (the git subcommand) so we only pull wrapper
+    # flags that come BEFORE it. With -E, `git tag -v <tag>` had -v stripped and ran
+    # `git tag <tag>` — creating a tag instead of verifying one.
+    zparseopts -D -- \
         v+=flag_v -verbose+=flag_v \
         q+=flag_q -quiet+=flag_q \
         -trace=flag_level -debug=flag_level -info=flag_level \
