@@ -1,6 +1,16 @@
 #compdef git-bid=git git-by-id=git
 #!/usr/bin/env zsh
 # code: language=zsh
+#
+# ---------------------------------------------------------------------------- #
+# Naming conventions
+#   git-bid-<name>   public subcommand handler   (e.g. git-bid-checkout, git-bid-push)
+#   -git-bid-<name>  private helper for a subcommand (leading dash = private)
+#   -bid-<name>      private utility, not a git subcommand (e.g. -bid-lg-* logging)
+#   GIT_BY_ID__<X>   user-facing config/theme variable (double underscore)
+#   GIT_IDS*         runtime id state (the numbered-id maps)
+# A leading dash marks a function as private / an implementation detail.
+# ---------------------------------------------------------------------------- #
 
 local previous_command_status=$?
 local previous_command=${history[$((HISTCMD-1))]}
@@ -83,7 +93,7 @@ zmodload zsh/datetime
         }
     }
 
-    # full path to the git command, this path is what is actually used byt git-by-id
+    # full path to the git command, this path is what is actually used by git-by-id
     : "${GIT_BY_ID__GIT_CMD:=$commands[$GIT_BY_ID__GIT]}"
 
     # log lots of output, options are
@@ -134,8 +144,14 @@ zmodload zsh/datetime
     #    git checkout -b some-branch/1
     : "${GIT_BY_ID__BRANCH_NEXT_TO_NUMBER:=1}"
 
-    # Replace "master" in commands with "main" for modern repos
-    : "${GIT_BY_ID__COERSE_TO_MAIN:=1}"
+    # Replace "master" in commands with "main" for modern repos.
+    # COERCE is the correct spelling; GIT_BY_ID__COERSE_TO_MAIN is the deprecated
+    # alias — if the user set it, honor it (once) and warn. Explicit COERCE wins.
+    (( $+GIT_BY_ID__COERSE_TO_MAIN )) && {
+        : "${GIT_BY_ID__COERCE_TO_MAIN:=$GIT_BY_ID__COERSE_TO_MAIN}"
+        print -Pu2 "+> %F{magenta}git-by-id%f: %F{#FFA500}GIT_BY_ID__COERSE_TO_MAIN is deprecated, use %BGIT_BY_ID__COERCE_TO_MAIN%b%f"
+    }
+    : "${GIT_BY_ID__COERCE_TO_MAIN:=1}"
 
     # Confirm pushes to main branch
     : "${GIT_BY_ID__CONFIRM_PUSH_TO_MAIN:=1}"
@@ -154,7 +170,7 @@ zmodload zsh/datetime
     # Push interactive history to the command line
     : "${GIT_BY_ID__INTERACTIVE_I_HISTORY:=1}"
 
-    # Defalt options to add to all fzf calls
+    # Default options to add to all fzf calls
     : "${GIT_BY_ID__FZF_DEFAULT_OPTS:=}"
 
     # prefix for log lines
@@ -200,7 +216,7 @@ zmodload zsh/datetime
         'arrow_phat=%F{magenta}  ==> %F{yellow}' # the arrow
 
         # colors by what they do
-        'id=%F{default}'      # ids/nubmers
+        'id=%F{default}'      # ids/numbers
         'branch=%F{yellow}' # branches
         'special=%F{blue}'   # special characters
         'path=%F{default}'    # paths
@@ -493,7 +509,7 @@ zmodload zsh/datetime
     autoload -Uz -- git-by-id || refunc_status=1
 
     # ------------------------- final logging and cleanup ------------------------ #
-    # temporaraly reload print functions
+    # temporarily reload print functions
     autoload -Uz -- -bid-lg-print -bid-lg-trace
 
     local end_setup="${GIT_BY_ID__SETUP_COMPLETE:-0}"
@@ -615,7 +631,7 @@ zmodload zsh/datetime
         (diff | rm | reset)
             git-bid-number-expand --byid-execute --byid-relative $cmd $extra_args "$@"
             ;;
-        (checkout)  # branch orenited things
+        (checkout)  # branch oriented things
             git-bid-checkout "$@"
             ;;
         (branch)
@@ -900,7 +916,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     "$@"
 }
 
-# ----------------------------- helper funcitons ----------------------------- #
+# ----------------------------- helper functions ----------------------------- #
 (( $+functions[git-bid-config] )) || function git-bid-config() {
     (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
@@ -996,20 +1012,20 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
         -fzf-success-msg:=success_msg \
         -fzf-empty-msg:=empty_msg \
         -fzf-git-status=git_status \
-        -fzf-extracter:=extracter \
+        -fzf-extracter:=extractor \
         -u=untracked -untracked=untracked \
 
     local \
         empty_msg=${empty_msg[2]} \
         git_cmd=${git_cmd[2]} \
 
-    if [[ $extracter ]] {
-        extracter=${extracter[2]}
+    if [[ $extractor ]] {
+        extractor=${extractor[2]}
     } else {
-        extracter="awk '{print \$2}'"
+        extractor="awk '{print \$2}'"
     }
     local preview="
-        file=\$( echo {} | ${extracter} )
+        file=\$( echo {} | ${extractor} )
         base=\$( git rev-parse --verify -q origin/${GIT_BY_ID__MAIN_BRANCH} || git rev-parse --verify -q ${GIT_BY_ID__MAIN_BRANCH} || echo HEAD )
         if (git status -s -- \"\$file\" | grep '^??') &>/dev/null; then  # diff with /dev/null for untracked files
             git diff --color=always --no-index -- /dev/null \"\$file\" | sed '2 s/added:/untracked:/'
@@ -1034,7 +1050,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
         git-bid status --short $untracked |
         sed '/^$/d' |
         fzf $fzf_opts |
-        sh -c "${extracter}"
+        sh -c "${extractor}"
         )"}
     )
 
@@ -1060,20 +1076,20 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
         -fzf-success-msg:=success_msg \
         -fzf-empty-msg:=empty_msg \
         -fzf-git-status=git_status \
-        -fzf-extracter:=extracter \
+        -fzf-extracter:=extractor \
         -u=untracked -untracked=untracked \
 
     local \
         empty_msg=${empty_msg[2]} \
         git_cmd=(${(s: :)git_cmd[2]}) \
 
-    if [[ $extracter ]] {
-        extracter=${extracter[2]}
+    if [[ $extractor ]] {
+        extractor=${extractor[2]}
     } else {
-        extracter="awk '{print \$0}'"
+        extractor="awk '{print \$0}'"
     }
     local preview="
-        branch=\$( echo {} | ${extracter} )
+        branch=\$( echo {} | ${extractor} )
         stuff=(
             \"\$(git log \"\$branch\" -1 --pretty=format:\"Branch: %D\\nSHA: %H\\nTime: %cd\\n\" --color=always)\"
             \"\$(git diff --merge-base ${GIT_BY_ID__MAIN_BRANCH} \"\$branch\" --compact-summary --color=always)\"
@@ -1101,7 +1117,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
         command git branch --sort=-committerdate --format="%(refname:short)"|
         sed '/^$/d' |
         fzf $fzf_opts |
-        sh -c "${extracter}"
+        sh -c "${extractor}"
         )"}
     )
 
@@ -1324,7 +1340,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     setopt re_match_pcre
     zmodload zsh/pcre
 
-    # index of argumets like '-b' or 'master'
+    # index of arguments like '-b' or 'master'
     local \
         dash_b_index=${@[(i)-b]} \
         master_index=${@[(i)master]} \
@@ -1333,7 +1349,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     local has_master_branch="$($GIT_BY_ID__GIT_CMD branch --list master)"
     local has_main_branch="$($GIT_BY_ID__GIT_CMD branch --list ${GIT_BY_ID__MAIN_BRANCH})"
 
-    if (( ${GIT_BY_ID__COERSE_TO_MAIN} )) && [[
+    if (( ${GIT_BY_ID__COERCE_TO_MAIN} )) && [[
         "$master_index" -le ${#@}
         && -z "$has_master_branch"
         && "$has_main_branch"
