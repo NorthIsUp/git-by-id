@@ -246,11 +246,11 @@ zmodload zsh/datetime
     # set up git alias unpacking
     # this makes it so if you have an alias of `alias.st=status` then `git-by-id st` will know you mean `status`
     local key='' _aliases=$($GIT_BY_ID__GIT_CMD config --get-regexp alias | cat)
-    function find-alias() {
+    function -bid-find-alias() {
         local alias_cmd="GIT_BY_ID__ALIAS_$1"
         [[ -v $alias_cmd ]] && {
             # print -u2 "found alias: $alias_cmd"
-            find-alias "${(P)alias_cmd}"
+            -bid-find-alias "${(P)alias_cmd}"
         } || {
             # print -u2 "no alias: $1"
             print -- $1
@@ -279,8 +279,12 @@ zmodload zsh/datetime
     }
     local _aliases=($(typeset +m 'GIT_BY_ID__ALIAS_*'))
     for key in $_aliases ; {
-        typeset -gx $key="$(find-alias ${key#GIT_BY_ID__ALIAS_*})"  # use find-alias to recursively unpack aliases
+        typeset -gx $key="$(-bid-find-alias ${key#GIT_BY_ID__ALIAS_*})"  # use -bid-find-alias to recursively unpack aliases
     }
+
+    # drop the nested helper so it doesn't leak into the global namespace
+    # (the -bid- prefix also puts it under refunc's `-bid-*` teardown as a safety net)
+    unfunction -- -bid-find-alias 2>/dev/null
 
     # mark time that setup completes (1 if EPOCHREALTIME is disabled)
     : "${GIT_BY_ID__SETUP_COMPLETE:=${EPOCHREALTIME:-1}}"
@@ -1559,7 +1563,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
         -byid-interactive=interactive \
 
 
-    function prel() {
+    function -bid-prel() {
         # when no numbers are set re-check for numbers
         if (( !GIT_IDS_COUNT && !doublechecked++ )) {
             # (this can happen if git is being run in a subshell)
@@ -1608,19 +1612,23 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
                 # Don't expand files or directories with numeric names
                 args+="$arg"
             } else {
-                prel "$arg" || return $status
+                -bid-prel "$arg" || return $status
             }
         } elif [[ "$arg" =~ ^([0-9]{1,4})(?:[-,]|[.]{2})([0-9]{1,4})$ ]] {
             # Expand ranges into $e{*} variables
             # supports ranges like n,n | n-n | n..n
             for i in {$match[1]..$match[2]}; {
-                prel $i || return $status
+                -bid-prel $i || return $status
             }
         } else {
             # Otherwise, treat $arg as a normal string.
             args+="$arg"
         }
     done
+
+    # drop the nested helper so it doesn't leak into the global namespace
+    # (the -bid- prefix also puts it under refunc's `-bid-*` teardown as a safety net)
+    unfunction -- -bid-prel 2>/dev/null
 
     -bid-lg-trace "expanded args to: ${(qqqq@)args}"
     if [[ "$execute" && "$interactive" ]] && (( $+functions[git-bid-fzf-${@[2]}] )) {
