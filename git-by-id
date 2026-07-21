@@ -95,7 +95,7 @@ zmodload zsh/datetime
     : "${GIT_BY_ID__LOG_EXPANSIONS:=1}"
 
     # location to dump a history of unwrapped commands
-    : "${GIT_BY_ID__LOGFILE:=/usr/local/var/log/git-bid.log}"
+    : "${GIT_BY_ID__LOGFILE:=${XDG_STATE_HOME:-$HOME/.local/state}/git-bid/git-bid.log}"
 
     # should id variables (`g23`, etc.) be set when creating the ids
     : "${GIT_BY_ID__SET_ID_VARS:=1}"
@@ -550,7 +550,8 @@ zmodload zsh/datetime
 
     (( $GIT_BY_ID__LOG_COMMANDS )) && {
         # logs all git-bid commands to a log
-        print "[$(date)] git-bid $@" >> $GIT_BY_ID__LOGFILE
+        [[ -d ${GIT_BY_ID__LOGFILE:h} ]] || mkdir -p ${GIT_BY_ID__LOGFILE:h} 2>/dev/null
+        print "[$(date)] git-bid $@" >> $GIT_BY_ID__LOGFILE 2>/dev/null
     }
 
     # unwrap the cmd to see if it is an alias, then use that for
