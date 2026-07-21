@@ -1542,7 +1542,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
                 ;|
             (ask)
                 # ask the user if they still want to push
-                -bid-lg-ask "Do you still want to push?"
+                -bid-lg-ask "Do you still want to push?" || return 1
                 ;;
         esac
     }
@@ -1551,9 +1551,9 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
         ${GIT_BY_ID__CONFIRM_PUSH_TO_MAIN} -eq 1
         && ! $_yes  # skip if -y or --yes is passed
         && -t 1     # check if fd1 is open for read
-        && "$($cmd branch --show-current)" =~ '^(master|main|'${GIT_BY_ID__MAIN_BRANCH}')$'
+        && "$($cmd symbolic-ref --short -q HEAD)" =~ '^(master|main|'${GIT_BY_ID__MAIN_BRANCH}')$'
     ]] {
-        -bid-lg-ask "Push to ${match[1]}?"
+        -bid-lg-ask "Push to ${match[1]}?" || return 1
     }
     $cmd "$@"
 }
