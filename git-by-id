@@ -445,6 +445,7 @@ zmodload zsh/datetime
             GIT_IDS_UNSTAGED
             GIT_IDS_UNTRACKED
             GIT_IDS_BRANCHES
+            GIT_IDS_CURRENT_BRANCH
         ) \
         bid_funcs=(
             ${(k)functions[(I)git-by-id]}
