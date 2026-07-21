@@ -579,7 +579,7 @@ zmodload zsh/datetime
         unwrapped_cmd="$one"
     }
 
-    if [[ "$one" != "$unwrapped_cmd" ]] && {
+    if [[ "$one" != "$unwrapped_cmd" ]] {
         -bid-lg-fixup green git replace_left $one -\> green git replace_right $unwrapped_cmd
         # don't do this, it will eat the alias!
         # set - $unwrapped_cmd ${@[2,-1]}
