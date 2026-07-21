@@ -128,8 +128,10 @@ zmodload zsh/pcre
     # Warn about pushes after a failed command
     : "${GIT_BY_ID__PUSH_AFTER_FAILED_COMMAND:=warn}" # error, warn, or ignore
 
-    # Main branch name
+    # Main branch name. It gets interpolated into fzf preview shell strings, so keep it a
+    # plain ref name — reject anything else (closes a config/env injection vector).
     : "${GIT_BY_ID__MAIN_BRANCH:=main}"
+    [[ $GIT_BY_ID__MAIN_BRANCH =~ '^[A-Za-z0-9._/-]+$' ]] || GIT_BY_ID__MAIN_BRANCH=main
 
     # Alias <cmd>i for interactive mode where supported. e.g. addi -> add --interactive
     : "${GIT_BY_ID__INTERACTIVE_I:=1}"
