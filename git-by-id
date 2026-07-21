@@ -384,9 +384,9 @@ zmodload zsh/datetime
 }
 
 (( $+functions[git-bid-refunc] )) || function git-bid-refunc() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
-    setopt re_match_pcre
+    setopt localoptions re_match_pcre extendedglob  # extendedglob for the g[0-9]## unset below
     zmodload zsh/pcre
 
     print -Pu2 "%F{red}re-sourcing all of git-by-id and supporting functions%F{reset}"
