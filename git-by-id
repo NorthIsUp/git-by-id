@@ -48,7 +48,7 @@ zmodload zsh/datetime
 
 # ------------------------------- git-bid-setup ------------------------------ #
 (( $+functions[git-bid-setup] )) || function git-bid-setup() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
     setopt re_match_pcre
     zmodload zsh/pcre
@@ -535,7 +535,7 @@ zmodload zsh/datetime
 #                                   Git By Id                                  #
 # ---------------------------------------------------------------------------- #
 (( $+functions[git-bid] )) || function git-bid() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
     (( ${__line_trace__:-0} )) && set -x || set +x  # turn on full tracing of the git command
     -bid-lg-trace "git-bid ${(qqqq)@}"
@@ -664,7 +664,7 @@ zmodload zsh/datetime
 
 # ----------------------------------- utils ---------------------------------- #
 (( $+functions[git-bid-splitup] )) || function git-bid-splitup() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
     # split up this file into several function files
     setopt re_match_pcre
@@ -917,7 +917,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 
 # ----------------------------- helper funcitons ----------------------------- #
 (( $+functions[git-bid-config] )) || function git-bid-config() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
     local config_result="$(${GIT_BY_ID__GIT} config $@ 2>/dev/null)"
     if (( $status == 0 )) && [[ "$config_result" ]] {
@@ -960,7 +960,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 
 # ------------------------------- git-bid-tgit ------------------------------- #
 (( $+functions[git-bid-fixup-history] )) || function git-bid-fixup-history() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
     # remove the bad command from the history
     fc -R
@@ -969,7 +969,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     fc -s "$@"
 }
 (( $+functions[git-bid-tgit] )) || function git-bid-tgit() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
     # handle `gi t` and `git git`
     case "$1" {
@@ -991,7 +991,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 
 # -------------------------------- git-bid-fzf ------------------------------- #
 (( $+functions[git-bid-fzf-handle-status-files] )) || function git-bid-fzf-handle-status-files() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
     zparseopts -D -E \
         -fzf-git-cmd:=git_cmd \
@@ -1053,7 +1053,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 }
 
 (( $+functions[git-bid-fzf-handle-branches] )) || function git-bid-fzf-handle-branches() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
     zparseopts -D -E \
         -fzf-git-cmd:=git_cmd \
@@ -1119,7 +1119,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 
 # ------------------------------ git-bid-fzf-add ----------------------------- #
 (( $+functions[git-bid-fzf-add] )) || function git-bid-fzf-add() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
     git-bid-fzf-handle-status-files \
         --fzf-git-cmd add \
@@ -1128,7 +1128,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 }
 
 (( $+functions[git-bid-fzf-reset] )) || function git-bid-fzf-reset() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
     git-bid-fzf-handle-status-files \
         --fzf-git-cmd reset \
@@ -1137,7 +1137,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 }
 
 (( $+functions[git-bid-fzf-checkout] )) || function git-bid-fzf-checkout() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
     git-bid-fzf-handle-status-files \
         --fzf-git-cmd checkout \
@@ -1146,7 +1146,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 }
 
 (( $+functions[git-bid-fzf-branch] )) || function git-bid-fzf-branch() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
     git-bid-fzf-handle-branches \
         --fzf-git-cmd "checkout" \
@@ -1226,7 +1226,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 
 # ---------------------------- git-bid-sha-is-ancestor --------------------------- #
 (( $+functions[git-bid-sha-is-ancestor] )) || function git-bid-sha-is-ancestor() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
     local maybe_ancestor="$1"
     local maybe_descendant="$2"
@@ -1249,13 +1249,13 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 
 # ---------------------------- git-bid-current-branch ---------------------------- #
 (( $+functions[git-bid-current-branch] )) || function git-bid-current-branch() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
     ${GIT_BY_ID__GIT} rev-parse --abbrev-ref HEAD 2>/dev/null
 }
 
 # ------------------------------ git-bid-squash ------------------------------ #
 (( $+functions[git-bid-squash] )) || function git-bid-squash() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
 
     zparseopts -D -E -- \
@@ -1481,7 +1481,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 
 # ------------------------------- git-bid-push ------------------------------- #
 (( $+functions[git-bid-push] )) || function git-bid-push() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
     setopt re_match_pcre
     zmodload zsh/pcre
@@ -1539,7 +1539,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 
 # ------------------------------- number expand ------------------------------ #
 (( $+functions[git-bid-number-expand] )) || function git-bid-number-expand() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
     # Allows expansion of numbered shortcuts, ranges of shortcuts, or standard paths.
     # Return a string which can be `eval`ed like: eval args="$(scmb_expand_args "$@")"
@@ -1694,7 +1694,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     print -P -- "${(j:\n:)output}$GIT_BY_ID__THEME_reset"
 }
 (( $+functions[git-bid-number-branch] )) || function git-bid-number-branch() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
     setopt re_match_pcre
     zmodload zsh/pcre
@@ -1729,7 +1729,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 
 # ---------------------------------- number ---------------------------------- #
 (( $+functions[git-bid-number] )) || function git-bid-number() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@:-}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@:-}"
 
     # Git status --porcelain output
     # X          Y     Meaning
