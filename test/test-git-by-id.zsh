@@ -18,6 +18,7 @@ git init -q
 git config user.email t@example.com
 git config user.name  tester
 git config status.showUntrackedFiles all   # don't inherit a runner's global "no"
+git config commit.gpgsign false            # tests must not depend on a signing agent
 git commit -q --allow-empty -m init
 
 # ── build a known working tree ─────────────────────────────────────────────
