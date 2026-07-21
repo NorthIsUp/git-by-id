@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # git-by-id is pure zsh; ubuntu-latest doesn't ship zsh, and `zsh -n`
+      # (the real linter) + the test harness both need it.
+      - name: Install zsh
+        run: sudo apt-get update && sudo apt-get install -y zsh
+
+      # Installs the mise.toml-pinned toolchain (hk + pkl) and puts them on PATH.
+      - uses: jdx/mise-action@v2
+
+      # zsh-syntax (zsh -n) + zsh-lint over git-by-id, the plugin file, and tests.
+      - name: hk check
+        run: hk check --all
+
+      - name: Integration tests
+        run: zsh test/test-git-by-id.zsh
