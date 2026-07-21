@@ -765,8 +765,8 @@ zmodload zsh/datetime
     until [[ "${result:l}" =~ "($yeses|$noes)" ]] {
         read result\?"$msg? [$options_msg]?${nl}> "
         result=${${result:-$default}:l}
-        [[ $result =~ ^$yeses$ ]] && return 0
-        [[ $result =~ ^$noes$ ]] && return 1
+        [[ $result =~ "^($yeses)$" ]] && return 0
+        [[ $result =~ "^($noes)$" ]] && return 1
         print -u2 "'$result' is not a valid option, try again"
     }
     # should never get here
