@@ -126,7 +126,7 @@ zmodload zsh/pcre
     : "${GIT_BY_ID__CONFIRM_PUSH_TO_MAIN:=1}"
 
     # Warn about pushes after a failed command
-    : "${GIT_BY_ID__PUSH_AFTER_FAILED_COMMAND:=error}" # error, warn, or ignore
+    : "${GIT_BY_ID__PUSH_AFTER_FAILED_COMMAND:=warn}" # error, warn, or ignore
 
     # Main branch name
     : "${GIT_BY_ID__MAIN_BRANCH:=main}"
@@ -1484,7 +1484,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
         local previous_command_head=${previous_command%% *} elipsis
         [[ $previous_command_head != $previous_command ]] && elipsis=" ..." || elipsis=""
         local msg=(
-            "WARNING: The previous command failed with status $previous_command_status, but continuing because it was not a git command"
+            "WARNING: The previous command failed with status ${previous_command_status}, but it doesn't seem to be a git command."
             # ""
             # "    $previous_command_head$elipsis"
             # ""
