@@ -351,7 +351,7 @@ zmodload zsh/datetime
         ${__error__:-0})        flag_level[1]=--error ;;
         ${__silent__:-0})       flag_level[1]=--silent ;;
     esac
-    [[ "$flag_v" || "$flag_q" ]] && (( _GIT_BY_ID_VERBOSITY = $#flag_v - $#flag_q ))
+    [[ "$flag_v" || "$flag_q" ]] && (( _GIT_BY_ID_VERBOSITY += $#flag_v - $#flag_q ))
     [[ "$flag_level" ]] && case "${flag_level[1]}" {
         --trace)    _GIT_BY_ID_VERBOSITY=$GIT_BY_ID__LOG_VALUES[trace] ;;
         --debug)    _GIT_BY_ID_VERBOSITY=$GIT_BY_ID__LOG_VALUES[debug] ;;
