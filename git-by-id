@@ -56,6 +56,18 @@ zmodload zsh/datetime
     (( $+GIT_BY_ID__SETUP_COMPLETE )) && return 0
     : "${GIT_BY_ID__SETUP_START:=${EPOCHREALTIME:-1}}"
 
+    # README-documented interface: user-facing config lives in the GIT_BY_ID[KEY]
+    # associative array; internally git-by-id uses exported GIT_BY_ID__KEY scalars
+    # (zsh can't export assoc arrays, and every consumer already reads the scalar).
+    # Seed each scalar from the map here so GIT_BY_ID[KEY] feeds the `:=` default below.
+    # Precedence: exported GIT_BY_ID__KEY (env) > GIT_BY_ID[KEY] > built-in default.
+    typeset -gA GIT_BY_ID 2>/dev/null
+    local _bid_k _bid_sv
+    for _bid_k in ${(k)GIT_BY_ID}; do
+        _bid_sv="GIT_BY_ID__${_bid_k}"
+        [[ -n ${(P)_bid_sv} ]] || typeset -gx "$_bid_sv"="${GIT_BY_ID[$_bid_k]}"
+    done
+
     # set up completions
     (( $+functions[compdef] )) && compdef git-bid=git git-by-id=git
 
@@ -726,7 +738,8 @@ zmodload zsh/datetime
         result= \
         nl=$'\n' \
         default=${opts[--default]:l} \
-        yeses=${opts[-y]:l} noes=${opts[-n]:l}
+        yeses=${opts[-y]:l} noes=${opts[-n]:l} \
+        options_msg=
 
     case "${default}" {
         (y|yes)     options_msg="Y/n" ;;
