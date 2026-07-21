@@ -1,0 +1,50 @@
+amends "package://github.com/jdx/hk/releases/download/v1.51.0/hk@1.51.0#/Config.pkl"
+
+// git-by-id is pure zsh. shellcheck does NOT support zsh, so the linters here are:
+//   - `zsh -n`  : native no-exec syntax/parse check (always available)
+//   - zsh-lint  : https://github.com/z-shell/zsh-lint (optional; skipped if not installed)
+// The zsh source has no extension (`git-by-id`), plus the .plugin.zsh and tests.
+
+local zshFiles = List("git-by-id", "git-by-id.plugin.zsh", "**/*.zsh")
+
+local linters = new Mapping<String, Step> {
+    // Native parse check — fails the commit on any syntax error. Loops so every
+    // matched file is checked (`zsh -n a b` would only parse the first arg).
+    ["zsh-syntax"] {
+        glob = zshFiles
+        check = "for f in {{ files }}; do zsh -n \"$f\" || exit 1; done"
+    }
+
+    // z-shell/zsh-lint, if the user has it on PATH. Non-fatal when absent so the
+    // hook still works out of the box; install it to make this bite.
+    ["zsh-lint"] {
+        glob = zshFiles
+        check = "command -v zsh-lint >/dev/null 2>&1 && zsh-lint {{ files }} || true"
+    }
+}
+
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "git"
+        steps = linters
+    }
+
+    // Run the integration smoke test before pushing (too slow for every commit).
+    ["pre-push"] {
+        steps = new Mapping<String, Step> {
+            ["zsh-tests"] {
+                glob = List("git-by-id", "test/*.zsh")
+                check = "zsh test/test-git-by-id.zsh"
+            }
+        }
+    }
+
+    ["fix"] {
+        fix = true
+        steps = linters
+    }
+    ["check"] {
+        steps = linters
+    }
+}
