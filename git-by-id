@@ -1012,10 +1012,11 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     }
     local preview="
         file=\$( echo {} | ${extracter} )
-        if (git status -s -- \$file | grep '^??') &>/dev/null; then  # diff with /dev/null for untracked files
-            git diff --color=always --no-index -- /dev/null \$file | sed '2 s/added:/untracked:/'
+        base=\$( git rev-parse --verify -q origin/${GIT_BY_ID__MAIN_BRANCH} || git rev-parse --verify -q ${GIT_BY_ID__MAIN_BRANCH} || echo HEAD )
+        if (git status -s -- \"\$file\" | grep '^??') &>/dev/null; then  # diff with /dev/null for untracked files
+            git diff --color=always --no-index -- /dev/null \"\$file\" | sed '2 s/added:/untracked:/'
         else
-            git diff --color=always origin/${GIT_BY_ID__MAIN_BRANCH} -- \$file
+            git diff --color=always \$base -- \"\$file\"
         fi
     "
     local fzf_opts=(
@@ -1031,18 +1032,19 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 
     # get list of files for fzf
     local chosen=(
-        $(
+        ${(f)"$(
         git-bid status --short $untracked |
         sed '/^$/d' |
         fzf $fzf_opts |
         sh -c "${extracter}"
-        )
+        )"}
     )
 
     if (( ${#chosen} > 0 )) {
-        # inject the chosen files into the command
-        (( GIT_BY_ID__INTERACTIVE_I_HISTORY )) && print -s "git ${git_cmd} $chosen"
-        -bid-lg-cmd git ${git_cmd} $chosen
+        # inject the chosen files into the command; -- stops leading-dash filenames being
+        # read as options, (q) makes the recalled-from-history line byte-safe.
+        (( GIT_BY_ID__INTERACTIVE_I_HISTORY )) && print -s "git ${git_cmd} -- ${(q)chosen}"
+        -bid-lg-cmd git ${git_cmd} -- $chosen
         local _exit_code=$status
         [[ "$git_status" ]] && git status
         return $_exit_code
@@ -1075,8 +1077,8 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     local preview="
         branch=\$( echo {} | ${extracter} )
         stuff=(
-            \"\$(git log \$branch -1 --pretty=format:\"Branch: %D\\nSHA: %H\\nTime: %cd\\n\" --color=always)\"
-            \"\$(git diff --merge-base ${GIT_BY_ID__MAIN_BRANCH} \$branch --compact-summary --color=always)\"
+            \"\$(git log \"\$branch\" -1 --pretty=format:\"Branch: %D\\nSHA: %H\\nTime: %cd\\n\" --color=always)\"
+            \"\$(git diff --merge-base ${GIT_BY_ID__MAIN_BRANCH} \"\$branch\" --compact-summary --color=always)\"
         )
         [[ \$stuff[-1] ]] || stuff=(\$stuff[1,-2])
         [[ \$stuff[-1] == ---- ]] && stuff=(\$stuff[1,-2])
@@ -1097,16 +1099,17 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 
     # get list of files for fzf
     local chosen=(
-        $(
+        ${(f)"$(
         command git branch --sort=-committerdate --format="%(refname:short)"|
         sed '/^$/d' |
         fzf $fzf_opts |
         sh -c "${extracter}"
-        )
+        )"}
     )
 
     if (( ${#chosen} > 0 )) {
-        (( GIT_BY_ID__INTERACTIVE_I_HISTORY )) && print -s "git ${git_cmd} $chosen"
+        # no `--` here: `git checkout -- x` means pathspec, not branch. (q) keeps history safe.
+        (( GIT_BY_ID__INTERACTIVE_I_HISTORY )) && print -s "git ${git_cmd} ${(q)chosen}"
         -bid-lg-cmd git ${git_cmd} $chosen
         local _exit_code=$status
         [[ "$git_status" ]] && git status
