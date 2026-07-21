@@ -1332,8 +1332,8 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
         master_index=${@[(i)master]} \
         expand_args=()
 
-    has_master_branch="$($GIT_BY_ID__GIT_CMD branch --list master)"
-    has_main_branch="$($GIT_BY_ID__GIT_CMD branch --list ${GIT_BY_ID__MAIN_BRANCH})"
+    local has_master_branch="$($GIT_BY_ID__GIT_CMD branch --list master)"
+    local has_main_branch="$($GIT_BY_ID__GIT_CMD branch --list ${GIT_BY_ID__MAIN_BRANCH})"
 
     if (( ${GIT_BY_ID__COERSE_TO_MAIN} )) && [[
         "$master_index" -le ${#@}
@@ -1357,15 +1357,17 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
         expand_args+=(--byid-branch)
     }
 
-    local result
+    local result co_status
     # run the git checkout command
     while IFS= read -r line; do
-        if [[ "$line" =~ "status=(.*)" ]] { # hack to capture the status of the command
+        if [[ "$line" =~ '^__bid_status__=([0-9]+)$' ]] { # anchored, uniquely-prefixed sentinel
             co_status=${match[1]}
             continue
-        } elif [[ "$line" =~ "fatal:.*" ]] {
-            result=$line
-            line="$GIT_BY_ID__THEME_error$line$GIT_BY_ID__THEME_reset"
+        } elif [[ "$line" == fatal:* ]] {
+            result=$line  # keep raw for the regexes below
+            line="$GIT_BY_ID__THEME_error${line//\%/%%}$GIT_BY_ID__THEME_reset"
+        } else {
+            line=${line//\%/%%}  # neutralize % so print -P won't expand filenames/branches
         }
 
         # actually print the line to the user on stderr
@@ -1373,13 +1375,13 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     done < <(
         git-bid-number-expand --byid-execute $expand_args $cmd "$@" \
             2>&1 >/dev/stdout # stderr to fd1 for the read loop, fd1 directly to the user
-            print "status=$status"
+            print "__bid_status__=$status"
         )
 
     -bid-lg-debug "co_status: $co_status"
     if [[
         $result =~ "fatal: '.*' is not a commit and a branch '.*' cannot be created from it" ||
-        $result =~ "fatal: Cannot update paths and switch to branch '.*' at the same time."
+        $result =~ "(?i)fatal: Cannot update paths and switch to branch '.*' at the same time."
     ]] {
         -bid-lg-debug "handling accidental branch -- $@"
         -git-bid-handle-accidental-branch "$@"
@@ -1396,10 +1398,11 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
         #     ;;
     }
 
-    if (( co_status )) && [[ "$dash_b_index" && "$config_key" && "$counter" ]] {
-        # decrement the counter if we failed to make the branch
-        git-bid-config --replace-all --int "$config_key" $(( --counter ))
-    }
+    # ponytail: a failed `checkout -b …/next` leaves a gap in the branch counter —
+    # interpolate-next-branch-name already bumped the git-config counter inside its
+    # command-substitution subshell, so config_key/counter never exist here to roll back.
+    # Gaps are cosmetic (branch numbers are labels, not indexes); not worth threading the
+    # counter key back out of the subshell. Upgrade path: have interpolate print key+counter.
 
     return $co_status
 }
