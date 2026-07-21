@@ -775,7 +775,7 @@ zmodload zsh/datetime
 (( $+functions[-bid-lg-inspect] )) || function -bid-lg-inspect() {
     { local _rc=$status ; set +x } 2>/dev/null  # disable tracing for logging functions
     (( _GIT_BY_ID_VERBOSITY >= 4 )) && -bid-lg "%F{black}inspect+> $@%f"
-    IFS="\n" && for line in $(cat -) ; do
+    local IFS=$'\n' ; for line in $(cat -) ; do
         -bid-lg "%F{black}inspect>> $line%f"
         print -- "$line"
     done
