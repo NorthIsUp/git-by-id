@@ -800,7 +800,7 @@ zmodload zsh/datetime
     zparseopts -D -E -- \
         -nl=number_lines
 
-    until [[ "${funcstack[$(( ++depth ))]}" != _* ]] {}
+    until [[ "${funcstack[$(( ++depth ))]}" != -bid-lg* ]] {}
 
     msg=${(P)${:-GIT_BY_ID__LOG_FORMAT_${(U)level}}}
     msg=${msg/\%level/$level}
