@@ -1674,22 +1674,22 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 
 # ------------------------------- number branch ------------------------------ #
 (( $+functions[-git-bid-number-branches] )) || function -git-bid-number-branches() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
-    # Set numbered file shortcut in variable using
-    local branches=( "$(IFS=$'\n' ${GIT_BY_ID__GIT} branch --color=never "$@")" )
-    local current_branch=($(print $branches | grep -E '^\*' | sed "s/^[* ]\{2\}//"))
-    local sorted_branches=($(print $branches | sed "s/^[* ]\{2\}//" | sort --version-sort ))
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    # Set numbered branch shortcuts. --format avoids the '* '/'+ ' (current/worktree)
+    # prefixes and detached-HEAD lines that word-split into bogus ids.
+    local current_branch="$(${GIT_BY_ID__GIT} symbolic-ref --short -q HEAD)"
+    local sorted_branches=( ${(f)"$(${GIT_BY_ID__GIT} branch --color=never --format='%(refname:short)' "$@" | sort --version-sort)"} )
     GIT_IDS_CURRENT_BRANCH=$current_branch
     for branch in $sorted_branches; do
-        (( GIT_IDS_COUNT++ && GIT_BY_ID__SET_ID_VARS && GIT_BY_ID__SET_ID_VARS )) \
-            && export $GIT_BY_ID__PREFIX_VAR$GIT_IDS_COUNT="$branch"
+        (( ++GIT_IDS_COUNT ))
+        (( GIT_BY_ID__SET_ID_VARS )) && export $GIT_BY_ID__PREFIX_VAR$GIT_IDS_COUNT="$branch"
         GIT_IDS+=([$GIT_IDS_COUNT]="$branch")
         GIT_IDS_BRANCHES+=([$GIT_IDS_COUNT]="$branch")
     done
 }
 
 (( $+functions[-git-bid-print-branches] )) || function -git-bid-print-branches() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
     local branches=${(k)GIT_IDS_BRANCHES}
     local \
