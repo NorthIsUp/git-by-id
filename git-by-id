@@ -44,7 +44,6 @@ zmodload zsh/datetime
     }
 
     return "$status"
-    print -Pu2 "%F{red}post git-bid-entrypoint%F{reset}"
 }
 
 # ------------------------------- git-bid-setup ------------------------------ #
