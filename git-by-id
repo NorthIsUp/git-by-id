@@ -5,10 +5,14 @@
 local previous_command_status=$?
 local previous_command=${history[$((HISTCMD-1))]}
 local previous_command_is_git=0
-[[ "$previous_command" =~ "^git\s+" ]] && previous_command_is_git=1
 
-setopt re_match_pcre
+# This whole file is git-by-id's body; local_options scopes option changes to the wrapper
+# call so we don't leak PCRE =~ semantics into the user's interactive shell. Load pcre BEFORE
+# the =~ below (it needs PCRE), and datetime so $EPOCHREALTIME isn't empty math.
+setopt local_options re_match_pcre
 zmodload zsh/pcre
+zmodload zsh/datetime
+[[ "$previous_command" =~ "^git\s+" ]] && previous_command_is_git=1
 
 # ---------------------------------------------------------------------------- #
 #                                   Git By Id                                  #
