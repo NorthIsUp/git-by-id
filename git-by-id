@@ -1159,22 +1159,24 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
 
 # ------------------------------ git-bid-stash ------------------------------ #
 (( $+functions[git-bid-stash] )) || function git-bid-stash() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
-    if [[ $1 == stash && $2 == pop ]] {
-        # handle stah pop -> git stash pop --quiet &&
+    # $1 may be an alias (e.g. `st`) — use the resolved subcommand from git-bid's scope
+    set -- "${unwrapped_cmd:-$1}" "${@:2}"
+
+    if [[ $2 == pop ]] {
+        # stash pop -> quiet, then renumber the resulting working tree
         $cmd "$@" --quiet
-        shift
-    } elif [[ $1 == stash ]] {
+    } else {
         $cmd "$@"
         return $status
     }
 
-    git-bid-number "${@[2,-1]}"
+    git-bid-number
 }
 
 (( $+functions[git-bid-interpolate-next-branch-name] )) || function git-bid-interpolate-next-branch-name() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
     local co_branch="$1"
 
     # if any of these fail return early
