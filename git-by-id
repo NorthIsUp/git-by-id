@@ -927,24 +927,37 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     }
 }
 
+(( $+functions[-git-bid-autocorrect-delay] )) || function -git-bid-autocorrect-delay() {
+    # Autocorrect abort window, in seconds. git's help.autocorrect is in deciseconds but
+    # may be unset, 0 (git: "disabled"), or a word ("prompt"/"never"/"immediate" on git≥2.36).
+    # Any of those would give an empty/zero sleep and autocorrect with no abort window — so
+    # fall back to a 5.0s window instead of failing with a "bad math expression".
+    local ac=$(git-bid-config help.autocorrect)
+    [[ $ac == <-> ]] && (( ac > 0 )) || ac=50
+    printf '%.1f' $(( ac / 10.0 ))
+}
+
 (( $+functions[git-bid-shell-usage] )) || function git-bid-shell-usage() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
     # Setup for shell
     cat <<- EOF
 	# add the following to an init script
-	alias git="git-bid"
-	alias gi="git"
+	alias git="git-by-id"
+	alias gi="git t"
 	EOF
 }
 
 
 (( $+functions[git-bid-clean-vars] )) || function git-bid-clean-vars() {
-    -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
+    (( ${_GIT_BY_ID_VERBOSITY:-0} >= 4 )) && -bid-lg-trace "running '$0' with @: ${(qqqq)@}"
 
-    # reset the vairables used in each run
+    setopt localoptions extendedglob  # the g[0-9]## unset below needs it
+
+    # reset the variables used in each run
     typeset -g \
         GIT_IDS_COUNT=0 \
+        GIT_IDS_CURRENT_BRANCH= \
         GIT_IDS_LAST_RUN=${EPOCHREALTIME:-1}
 
     typeset -Agx \
@@ -1418,10 +1431,10 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     result=$(git-bid-number-expand --byid-execute --byid-branch $cmd "$@" 2>&1)
     -bid-lg-debug "result: $result"
     if (( ${GIT_BY_ID__AUTOCORRECT_BRANCH_ALREADY_EXISTS} )) \
-        && [[ "$result" =~ "fatal: A branch named '(.*)' already exists" ]] {
+        && [[ "$result" =~ "(?i)fatal: a branch named '(.*)' already exists" ]] {
         -bid-lg-debug "branch already exists"
         local branch="${match[1]}"
-        local sleep_time=$(printf '%.1f' $(($(git-bid-config help.autocorrect) / 10.0)) )
+        local sleep_time=$(-git-bid-autocorrect-delay)
 
         msg=(
             "${GIT_BY_ID__THEME_warn}WARNING%f: You tried to make a branch that already exists."
@@ -1439,7 +1452,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
             message="[${match[1]}] ${match[2]}" \
             new_branch="${match[1]//[^[:alnum:]]/_}/next-${match[2]//[^[:alnum:]]/-}" \
             commit_msg="[${match[1]}] ${match[2]}" \
-            sleep_time=$(printf '%.1f' $(($(git-bid-config help.autocorrect) / 10.0)) )
+            sleep_time=$(-git-bid-autocorrect-delay)
     } elif (( ${GIT_BY_ID__AUTOCORRECT_COMMIT_OOPS_BRANCH} )) \
         && [[ "$result" =~ "fatal: '(.*)' is not a valid branch name" ]] {
         -bid-lg-debug "not a valid branch name"
@@ -1447,7 +1460,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
             message="${match[1]}" \
             new_branch="${match[1]//[^[:alnum:]]/_}-next" \
             commit_msg="${match[1]}" \
-            sleep_time=$(printf '%.1f' $(($(git-bid-config help.autocorrect) / 10.0)) )
+            sleep_time=$(-git-bid-autocorrect-delay)
 
         # if there is a ticket id (e.g. NIU-123) then prefix the branch and message with it
         [[ $feature_tag ]] && {
@@ -1457,14 +1470,14 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
         }
     } elif [[
         "$result" =~ "fatal: '(.*)' is not a commit and a branch '(.*)' cannot be created from it" ||
-        "$result" =~ "fatal: Cannot update paths and switch to branch '(.*)' at the same time."
+        "$result" =~ "(?i)fatal: Cannot update paths and switch to branch '(.*)' at the same time."
     ]] {
         -bid-lg-debug "cannot update paths and switch to branch"
         local \
             message="${match[1]}" \
             new_branch="${match[1]//[^[:alnum:]]/_}-next" \
             commit_msg="${match[1]}" \
-            sleep_time=$(printf '%.1f' $(($(git-bid-config help.autocorrect) / 10.0)) )
+            sleep_time=$(-git-bid-autocorrect-delay)
 
     } else {
         msg=(
@@ -1485,7 +1498,7 @@ for _log_level ( trace debug info warn error ) (( $+functions[-bid-lg-${_log_lev
     sleep $sleep_time
 
     -bid-lg-cmd git-bid checkout -b "$new_branch" \
-        && print -s -- "${GIT_BY_ID__GIT} commit --all --message \"$commit_msg\"" \
+        && print -s -- "${GIT_BY_ID__GIT} commit --all --message ${(qq)commit_msg}" \
         && -bid-lg-cmd git-bid commit --verbose --all --message "$commit_msg"
 
     return $status
